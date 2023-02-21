@@ -25,7 +25,7 @@ def main():
                   callbacks=(cp,))
 
 
-def dataset(path=os.path.expanduser("~/data/denoise/charge_density/original/")):
+def dataset(path=os.path.expanduser("~/data/denoise/charge_density/x16/original/")):
     AUTOTUNE = tf.data.AUTOTUNE
 
     ds = tf.data.Dataset.list_files(os.path.join(path, "*.hdf"), seed=SEED, shuffle=True)
@@ -47,7 +47,7 @@ def loadq(filename):
     patch = list(file.keys())[0]        # name of the first group contained in the file
     group = file[patch]                 # first group
     dataset = list(group.keys())[0]     # name of the first dataset in the group (c-density)
-    q = np.array(group[dataset])[::16, ::16].astype('float32', copy = False)
+    q = np.array(group[dataset]).astype('float32', copy = False)
     file.close()
     q = np.reshape(q, (q.shape[0], q.shape[1], 1))
 
