@@ -5,7 +5,9 @@ def main():
     model.summary(positions=[.25, .6, .7, 1.])
 
 
-def buildmodel(filters=32):
+def buildmodel(filters=32,
+               lin_conv_size=9,
+               nonlin_conv_size=5):
     input_size = (None, None, 1)
     inputs = tf.keras.Input(shape = input_size, name = "inputs")
 
@@ -14,22 +16,24 @@ def buildmodel(filters=32):
                                trainable=False,
                                kernel_initializer=tf.keras.initializers.Ones())(inputs)
         
-    n = tf.keras.layers.Conv2D(filters, 5, padding="same", use_bias=True)(inputs)
+    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size, padding="same",
+                               use_bias=True)(inputs)
     n = tf.keras.layers.Activation('relu')(n)
-    n = tf.keras.layers.Conv2D(filters, 5, padding="same", use_bias=True)(n)
+    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size, padding="same",
+                               use_bias=True)(n)
     n = tf.keras.layers.Activation('relu')(n)
     n = tf.keras.layers.Softmax(axis=3)(n)
 
     m = tf.keras.layers.Multiply()([x, n])
 
-    c = tf.keras.layers.DepthwiseConv2D(9, padding="same", use_bias=False,
-                               kernel_constraint=CenterAround(0.0))(m)
+    c = tf.keras.layers.DepthwiseConv2D(lin_conv_size, padding="same", use_bias=False,
+                                        kernel_constraint=CenterAround(0.0))(m)
     
     s = tf.keras.layers.Conv2D(1, 1, padding="same", use_bias=False,
                                kernel_initializer=tf.keras.initializers.Constant(value=1./filters),
                                trainable=False)(c)
     
-    model = tf.keras.Model(inputs = inputs, outputs = s)
+    model = tf.keras.Model(inputs=inputs, outputs=s)
     return model
 
 
