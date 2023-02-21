@@ -20,7 +20,7 @@ def main():
     cp = tf.keras.callbacks.ModelCheckpoint('checkpoints', monitor='loss', mode='min',
                                             verbose=1, save_best_only=True)
     model.compile(loss='mse', optimizer='Adam')
-    r = model.fit(ds, epochs=100, batch_size=BATCH_SIZES[0],
+    r = model.fit(ds, epochs=1000, batch_size=BATCH_SIZES[0],
                   use_multiprocessing=True, verbose=2, workers=workers,
                   callbacks=(cp,))
 
