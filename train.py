@@ -1,0 +1,107 @@
+import os
+import numpy as np
+import tensorflow as tf
+import h5py
+from multiprocessing import cpu_count
+
+SEED = 2021             # seed to initialize the random number generator
+BATCH_SIZES = (4, 4, 1) # Batch size for datasets (training, validation, test = 1)
+WORKERS = cpu_count()   # Number of CPUs for parallel operations
+
+def main():
+    model = buildmodel()
+    model.summary()
+
+    ds = dataset()
+    workers = 4 #cpu_count()
+    print(f"{workers=}")
+    cp = tf.keras.callbacks.ModelCheckpoint('checkpoints', monitor='loss', mode='min',
+                                            verbose=1, save_best_only=True)
+    model.compile(loss='mse', optimizer='Adam')
+    r = model.fit(ds, epochs=100, batch_size=BATCH_SIZES[0],
+                  use_multiprocessing=True, verbose=2, workers=workers,
+                  callbacks=(cp,))
+
+    
+def buildmodel(filters=32):
+    input_size = (None, None, 1)
+    inputs = tf.keras.Input(shape = input_size, name = "inputs")
+    m = inputs
+    f = tf.keras.layers.Conv2D(filters, 9, padding="same", use_bias=False,
+                               kernel_constraint=CenterAround(0.0))(inputs)
+    
+    n = tf.keras.layers.Conv2D(filters, 5, padding="same", use_bias=True)(inputs)
+    n = tf.keras.layers.Activation('relu')(n)
+    n = tf.keras.layers.Conv2D(filters, 5, padding="same", use_bias=True)(n)
+    n = tf.keras.layers.Activation('relu')(n)
+    n = tf.keras.layers.Softmax(axis=3)(n)
+
+    m = tf.keras.layers.Multiply()([n, f])
+    
+    m = tf.keras.layers.Conv2D(1, 1, padding="same", use_bias=False,
+                               kernel_initializer=tf.keras.initializers.Constant(value=1./filters),
+                               trainable=False)(m)
+    
+    model = tf.keras.Model(inputs = inputs, outputs = m)
+    return model
+
+
+def dataset(path="/Volumes/T7/data/denoise/charge_density/original/"):
+    AUTOTUNE = tf.data.AUTOTUNE
+
+    ds = tf.data.Dataset.list_files(os.path.join(path, "*.hdf"), seed=SEED, shuffle=True)
+    ds = ds.map(lambda fname: tf.py_function(func = load2, inp=[fname],
+                                             Tout=(tf.float32, tf.float32)),
+                num_parallel_calls=AUTOTUNE, deterministic=True)
+
+    ds = ds.batch(BATCH_SIZES[0])
+    ds = ds.prefetch(AUTOTUNE)
+    options = tf.data.Options()
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.AUTO
+    ds = ds.with_options(options)
+    return ds
+
+
+def loadq(filename):
+    file = h5py.File(filename, mode='r')   # loading the hdf5 file
+
+    patch = list(file.keys())[0]        # name of the first group contained in the file
+    group = file[patch]                 # first group
+    dataset = list(group.keys())[0]     # name of the first dataset in the group (c-density)
+    q = np.array(group[dataset])[::16, ::16].astype('float32', copy = False)
+    file.close()
+    q = np.reshape(q, (q.shape[0], q.shape[1], 1))
+
+    return q
+
+
+def load2(filename):
+    if not isinstance(filename, str):
+        filename = filename.numpy().decode("utf-8") 
+    
+    q = loadq(filename)
+    q1 = loadq(filename.replace('original', 'noisy_50'))
+
+    return q1, q
+
+
+
+# Lifted from the keras documentation.  Using ref_value=0 it can be used to
+# impose charge conservation in convolution.
+class CenterAround(tf.keras.constraints.Constraint):
+  """Constrains weight tensors to be centered around `ref_value`."""
+  
+  def __init__(self, ref_value):
+    self.ref_value = ref_value
+
+  def __call__(self, w):
+    mean = tf.reduce_mean(w)
+    return w - mean + self.ref_value
+
+  def get_config(self):
+    return {'ref_value': self.ref_value}
+
+
+
+if __name__ == '__main__':
+    main()
