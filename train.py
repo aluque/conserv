@@ -3,6 +3,8 @@ import numpy as np
 import tensorflow as tf
 import h5py
 from multiprocessing import cpu_count
+from model import buildmodel
+
 
 SEED = 2021             # seed to initialize the random number generator
 BATCH_SIZES = (4, 4, 1) # Batch size for datasets (training, validation, test = 1)
@@ -22,31 +24,8 @@ def main():
                   use_multiprocessing=True, verbose=2, workers=workers,
                   callbacks=(cp,))
 
-    
-def buildmodel(filters=32):
-    input_size = (None, None, 1)
-    inputs = tf.keras.Input(shape = input_size, name = "inputs")
-    m = inputs
-    f = tf.keras.layers.Conv2D(filters, 9, padding="same", use_bias=False,
-                               kernel_constraint=CenterAround(0.0))(inputs)
-    
-    n = tf.keras.layers.Conv2D(filters, 5, padding="same", use_bias=True)(inputs)
-    n = tf.keras.layers.Activation('relu')(n)
-    n = tf.keras.layers.Conv2D(filters, 5, padding="same", use_bias=True)(n)
-    n = tf.keras.layers.Activation('relu')(n)
-    n = tf.keras.layers.Softmax(axis=3)(n)
 
-    m = tf.keras.layers.Multiply()([n, f])
-    
-    m = tf.keras.layers.Conv2D(1, 1, padding="same", use_bias=False,
-                               kernel_initializer=tf.keras.initializers.Constant(value=1./filters),
-                               trainable=False)(m)
-    
-    model = tf.keras.Model(inputs = inputs, outputs = m)
-    return model
-
-
-def dataset(path="/Volumes/T7/data/denoise/charge_density/original/"):
+def dataset(path=os.path.expanduser("~/data/denoise/charge_density/original/")):
     AUTOTUNE = tf.data.AUTOTUNE
 
     ds = tf.data.Dataset.list_files(os.path.join(path, "*.hdf"), seed=SEED, shuffle=True)
@@ -83,24 +62,6 @@ def load2(filename):
     q1 = loadq(filename.replace('original', 'noisy_50'))
 
     return q1, q
-
-
-
-# Lifted from the keras documentation.  Using ref_value=0 it can be used to
-# impose charge conservation in convolution.
-class CenterAround(tf.keras.constraints.Constraint):
-  """Constrains weight tensors to be centered around `ref_value`."""
-  
-  def __init__(self, ref_value):
-    self.ref_value = ref_value
-
-  def __call__(self, w):
-    mean = tf.reduce_mean(w)
-    return w - mean + self.ref_value
-
-  def get_config(self):
-    return {'ref_value': self.ref_value}
-
 
 
 if __name__ == '__main__':
