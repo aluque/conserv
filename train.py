@@ -7,7 +7,7 @@ from model import buildmodel
 
 
 SEED = 2021             # seed to initialize the random number generator
-BATCH_SIZES = (4, 4, 1) # Batch size for datasets (training, validation, test = 1)
+BATCH_SIZES = (8, 4, 1) # Batch size for datasets (training, validation, test = 1)
 WORKERS = cpu_count()   # Number of CPUs for parallel operations
 
 def main():

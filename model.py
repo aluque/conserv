@@ -18,10 +18,12 @@ def buildmodel(filters=32,
         
     n = tf.keras.layers.Conv2D(filters, nonlin_conv_size, padding="same",
                                use_bias=True)(inputs)
-    n = tf.keras.layers.Activation('relu')(n)
+    n = tf.keras.layers.LeakyReLU(alpha=0.1)(n)
+    n = tf.keras.layers.Concatenate(axis=3)([n, inputs])
+    
     n = tf.keras.layers.Conv2D(filters, nonlin_conv_size, padding="same",
                                use_bias=True)(n)
-    n = tf.keras.layers.Activation('relu')(n)
+    n = tf.keras.layers.LeakyReLU(alpha=0.1)(n)
     n = tf.keras.layers.Softmax(axis=3)(n)
 
     m = tf.keras.layers.Multiply()([x, n])
