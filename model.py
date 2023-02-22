@@ -26,32 +26,31 @@ def buildmodel(filters=32,
 
     m = tf.keras.layers.Multiply()([x, n])
 
-    c = tf.keras.layers.DepthwiseConv2D(lin_conv_size, padding="same", use_bias=False,
-                                        kernel_constraint=CenterAround(0.0))(m)
+    c = tf.keras.layers.DepthwiseConv2D(lin_conv_size, padding="valid", use_bias=False,
+                                        depthwise_constraint=FixSum(1.0))(m)
     
     s = tf.keras.layers.Conv2D(1, 1, padding="same", use_bias=False,
-                               kernel_initializer=tf.keras.initializers.Constant(value=1./filters),
+                               kernel_initializer=tf.keras.initializers.Ones(),
                                trainable=False)(c)
     
     model = tf.keras.Model(inputs=inputs, outputs=s)
     return model
 
 
-# Lifted from the keras documentation.  Using ref_value=0 it can be used to
-# impose charge conservation in convolution.
-class CenterAround(tf.keras.constraints.Constraint):
-  """Constrains weight tensors to be centered around `ref_value`."""
+class FixSum(tf.keras.constraints.Constraint):
+  """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
+  in the spatial dimensions. """
   
   def __init__(self, ref_value):
-    self.ref_value = ref_value
+      self.ref_value = ref_value
 
   def __call__(self, w):
-    mean = tf.reduce_mean(w)
-    return w - mean + self.ref_value
+      w1 = w * tf.cast(tf.greater_equal(w, 0.0), tf.keras.backend.floatx())
+      s = tf.reduce_sum(w1, axis=[0, 1])
+      return self.ref_value * w1 / s
 
   def get_config(self):
-    return {'ref_value': self.ref_value}
-
+      return {'ref_value': self.ref_value}
 
 
 if __name__ == '__main__':
