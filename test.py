@@ -13,13 +13,18 @@ def main():
     model.summary(positions=[.25, .6, .7, 1.])
     path = os.path.expanduser("~/data/denoise/charge_density/x16/original/")
     fname = "background_density10_negative_10kV_claw0021.hdf"
-    q1, q = load2(os.path.join(path, fname), 4)
+    l = 6
+
+    q1, q = load2(os.path.join(path, fname), l)
 
     q1 = q1.reshape((1, *q1.shape))
-    print(q.shape)
-    print(q1.shape)
     q0 = model.predict(q1)
 
+    qtotal0 = np.sum(q0)
+    qtotal1 = np.sum(q1[0, l:-l, l:-l, 0])
+    print(f"{qtotal0=}\n{qtotal1=}")
+    print(q0.shape, q1[0, l:-l, l:-l, 0].shape)
+    
     vmax = 0.3
     plotq(q[:, :, 0], name="original", vmax=vmax)
     plotq(q1[0, :, :, 0], name="noisy", vmax=vmax)

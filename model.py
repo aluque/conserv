@@ -28,7 +28,8 @@ def buildmodel(filters=32,
 
     m = tf.keras.layers.Multiply()([x, n])
 
-    c = tf.keras.layers.DepthwiseConv2D(lin_conv_size, padding="valid", use_bias=False,
+    c = tf.keras.layers.DepthwiseConv2D(lin_conv_size, padding="valid",
+                                        use_bias=False,
                                         depthwise_constraint=FixSum(1.0))(m)
     
     s = tf.keras.layers.Conv2D(1, 1, padding="same", use_bias=False,

@@ -11,7 +11,7 @@ BATCH_SIZES = (8, 4, 1) # Batch size for datasets (training, validation, test = 
 WORKERS = cpu_count()   # Number of CPUs for parallel operations
 
 def main():
-    l = 4
+    l = 6
     model = buildmodel(lin_conv_size=2 * l + 1)
     model.summary()
 
