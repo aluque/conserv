@@ -5,25 +5,25 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 
 from train import load2, padding
-from model import FixSum
+from model import FixSum, Padding2D
 
 def main():
     model = tf.keras.models.load_model('checkpoint.hdf5',
-                                       custom_objects={'FixSum': FixSum})
+                                       custom_objects={'FixSum': FixSum,
+                                                       'Padding2D': Padding2D})
     model.summary(positions=[.25, .6, .7, 1.])
     path = os.path.expanduser("~/data/denoise/charge_density/x16/original/")
     fname = "background_density10_negative_10kV_claw0021.hdf"
-    l = 6
 
-    q1, q = load2(os.path.join(path, fname), l)
+    q1, q = load2(os.path.join(path, fname))
 
     q1 = q1.reshape((1, *q1.shape))
     q0 = model.predict(q1)
 
     qtotal0 = np.sum(q0)
-    qtotal1 = np.sum(q1[0, l:-l, l:-l, 0])
+    qtotal1 = np.sum(q1)
     print(f"{qtotal0=}\n{qtotal1=}")
-    print(q0.shape, q1[0, l:-l, l:-l, 0].shape)
+    print(q0.shape, q1.shape)
     
     vmax = 0.3
     plotq(q[:, :, 0], name="original", vmax=vmax)
@@ -41,6 +41,6 @@ def plotq(q, name="", vmax=None):
     plt.pcolormesh(q, vmin=-vmax, vmax=vmax, cmap="bwr")
     plt.colorbar()
     
-    
+
 if __name__ == '__main__':
     main()

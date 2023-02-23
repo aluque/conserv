@@ -11,11 +11,10 @@ BATCH_SIZES = (8, 4, 1) # Batch size for datasets (training, validation, test = 
 WORKERS = cpu_count()   # Number of CPUs for parallel operations
 
 def main():
-    l = 6
-    model = buildmodel(lin_conv_size=2 * l + 1)
+    model = buildmodel(l=4, m=3)
     model.summary()
 
-    ds = dataset(padding=l)
+    ds = dataset()
     workers = 4 #cpu_count()
     print(f"{workers=}")
     cp = tf.keras.callbacks.ModelCheckpoint('checkpoint.hdf5', monitor='loss', mode='min',
@@ -26,12 +25,11 @@ def main():
                   callbacks=(cp,))
 
 
-def dataset(path=os.path.expanduser("~/data/denoise/charge_density/x16/original/"),
-            padding=0):
+def dataset(path=os.path.expanduser("~/data/denoise/charge_density/x16/original/")):
     AUTOTUNE = tf.data.AUTOTUNE
 
     ds = tf.data.Dataset.list_files(os.path.join(path, "*.hdf"), seed=SEED, shuffle=True)
-    ds = ds.map(lambda fname: tf.py_function(func = load2, inp=[fname, padding],
+    ds = ds.map(lambda fname: tf.py_function(func = load2, inp=[fname],
                                              Tout=(tf.float32, tf.float32)),
                 num_parallel_calls=AUTOTUNE, deterministic=True)
 
@@ -55,7 +53,7 @@ def loadq(filename):
     return q
 
 
-def load2(filename, p):
+def load2(filename):
     if not isinstance(filename, str):
         filename = filename.numpy().decode("utf-8") 
     
@@ -63,9 +61,6 @@ def load2(filename, p):
     q = np.reshape(q, (q.shape[0], q.shape[1], 1))
 
     q1 = loadq(filename.replace('original', 'noisy_50'))
-    if p > 0:
-        q1 = padding(q1, p)
-        
     q1 = np.reshape(q1, (q1.shape[0], q1.shape[1], 1))
     return q1, q
 

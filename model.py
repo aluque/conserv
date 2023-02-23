@@ -5,56 +5,125 @@ def main():
     model.summary(positions=[.25, .6, .7, 1.])
 
 
-def buildmodel(filters=32,
-               lin_conv_size=9,
-               nonlin_conv_size=5):
+def buildmodel(filters=32, l=4, m=2):
+    lin_conv_size = 2 * l + 1
+    nonlin_conv_size = 2 * m + 1
+    
     input_size = (None, None, 1)
     inputs = tf.keras.Input(shape = input_size, name = "inputs")
 
+    # Obtaining the weights b and c
+    n = Padding2D(name="pad_conv1", padding=[m, m])(inputs)
+    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size,
+                               name="conv1",
+                               padding="valid",
+                               use_bias=True)(n)
+    n = tf.keras.layers.LeakyReLU(name="activ1", alpha=0.1)(n)
+    n = tf.keras.layers.Concatenate(name="concat", axis=3)([n, inputs])
+    
+    n = Padding2D(name="pad_conv2", padding=[m, m])(n)
+    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size,
+                               name="conv2",
+                               padding="valid",
+                               use_bias=True)(n)
+    n = tf.keras.layers.LeakyReLU(name="activ2", alpha=0.1)(n)
+    n = tf.keras.layers.Softmax(name="softmax", axis=3)(n)
+
+
+
     # Expansion in the channels direction (copying)
-    x = tf.keras.layers.Conv2D(filters, 1, padding="same", use_bias=False,
+    x = tf.keras.layers.Conv2D(filters, 1, name="demux",
+                               padding="same", use_bias=False,
                                trainable=False,
                                kernel_initializer=tf.keras.initializers.Ones())(inputs)
-        
-    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size, padding="same",
-                               use_bias=True)(inputs)
-    n = tf.keras.layers.LeakyReLU(alpha=0.1)(n)
-    n = tf.keras.layers.Concatenate(axis=3)([n, inputs])
-    
-    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size, padding="same",
-                               use_bias=True)(n)
-    n = tf.keras.layers.LeakyReLU(alpha=0.1)(n)
-    n = tf.keras.layers.Softmax(axis=3)(n)
 
-    m = tf.keras.layers.Multiply()([x, n])
+    p = tf.keras.layers.Multiply(name="partition")([x, n])
 
-    c = tf.keras.layers.DepthwiseConv2D(lin_conv_size, padding="valid",
+    p = Padding2D(name="pad_K", padding=[l, l])(p)
+    homogen = tf.keras.initializers.Constant(1/lin_conv_size**2)
+    K = tf.keras.layers.DepthwiseConv2D(lin_conv_size,
+                                        name="K",
+                                        padding="valid",
                                         use_bias=False,
-                                        depthwise_constraint=FixSum(1.0))(m)
+                                        kernel_initializer=homogen,
+                                        depthwise_constraint=FixSum(1.0))(p)
     
-    s = tf.keras.layers.Conv2D(1, 1, padding="same", use_bias=False,
+    y = tf.keras.layers.Conv2D(1, 1,
+                               name="mux",
+                               padding="same", use_bias=False,
                                kernel_initializer=tf.keras.initializers.Ones(),
-                               trainable=False)(c)
+                               trainable=False)(K)
     
-    model = tf.keras.Model(inputs=inputs, outputs=s)
+    model = tf.keras.Model(inputs=inputs, outputs=y)
     return model
 
 
 class FixSum(tf.keras.constraints.Constraint):
-  """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
-  in the spatial dimensions. """
+    """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
+    in the spatial dimensions. """
   
-  def __init__(self, ref_value):
-      self.ref_value = ref_value
+    def __init__(self, ref_value):
+        self.ref_value = ref_value
 
-  def __call__(self, w):
-      w1 = w * tf.cast(tf.greater_equal(w, 0.0), tf.keras.backend.floatx())
-      s = tf.reduce_sum(w1, axis=[0, 1])
-      return self.ref_value * w1 / s
+    def __call__(self, w):
+        w1 = w * tf.cast(tf.greater_equal(w, 0.0), tf.keras.backend.floatx())
+        s = tf.reduce_sum(w1, axis=[0, 1])
+        return self.ref_value * w1 / s
 
-  def get_config(self):
-      return {'ref_value': self.ref_value}
+    def get_config(self):
+        return {'ref_value': self.ref_value}
 
 
+# Adapted from
+# https://stackoverflow.com/questions/49189496/can-symmetrically-paddding-be-done-in-convolution-layers-in-keras (retrieved Thu Feb 23 10:28:53 2023)
+class Padding2D(tf.keras.layers.Layer):
+    def __init__(self, mode="SYMMETRIC",
+                 padding=[1,1], data_format="channels_last", **kwargs):
+        self.data_format = data_format
+        self.padding = padding
+        self.mode = mode
+        super(Padding2D, self).__init__(**kwargs)
+        
+    def build(self, input_shape):
+        super(Padding2D, self).build(input_shape)
+
+    def call(self, inputs):    
+        if (self.data_format == "channels_last"):
+            #(batch, depth, rows, cols, channels)
+            pad = [[0,0]] + [[i,i] for i in self.padding] + [[0,0]]
+        
+        elif self.data_format == "channels_first":
+            #(batch, channels, depth, rows, cols)
+            pad = [[0, 0], [0, 0]] + [[i,i] for i in self.padding]
+
+        if tf.keras.backend.backend() == "tensorflow":
+            paddings = tf.constant(pad)
+            out = tf.pad(inputs, paddings, self.mode)
+        else:
+            raise Exception("Backend " + tf.keras.backend.backend() + "not implemented")
+        return out 
+        
+    def compute_output_shape(self, input_shape):
+        if self.data_format == "channels_last":
+            #(batch, depth, rows, cols, channels)
+            return (input_shape[0],
+                    input.shape[1] + 2 * self.padding[0],
+                    input.shape[2] + 2 * self.padding[1],
+                    input_shape[3])
+
+        elif self.data_format == "channels_first":
+            #(batch, channels, depth, rows, cols)
+            return (input_shape[0],
+                    input_shape[1],
+                    input.shape[2] + 2 * self.padding[0],
+                    input.shape[3] + 2 * self.padding[1])
+
+
+    def get_config(self):
+        return {'mode': self.mode,
+                'padding': self.padding,
+                'data_format': self.data_format,
+                'name': self.name}
+        
 if __name__ == '__main__':
     main()
