@@ -1,8 +1,11 @@
 import tensorflow as tf
 
+
+
 def main():
     model = buildmodel()
     model.summary(positions=[.25, .6, .7, 1.])
+    model.compile(loss='mse', optimizer='Adam')
 
 
 def buildmodel(filters=32, l=4, m=2):
@@ -30,7 +33,6 @@ def buildmodel(filters=32, l=4, m=2):
     n = tf.keras.layers.Softmax(name="softmax", axis=3)(n)
 
 
-
     # Expansion in the channels direction (copying)
     x = tf.keras.layers.Conv2D(filters, 1, name="demux",
                                padding="same", use_bias=False,
@@ -39,14 +41,16 @@ def buildmodel(filters=32, l=4, m=2):
 
     p = tf.keras.layers.Multiply(name="partition")([x, n])
 
-    p = Padding2D(name="pad_K", padding=[l, l])(p)
+    p = tf.keras.layers.ZeroPadding2D(name="pad_K", padding=[l, l])(p)
     homogen = tf.keras.initializers.Constant(1/lin_conv_size**2)
     K = tf.keras.layers.DepthwiseConv2D(lin_conv_size,
                                         name="K",
-                                        padding="valid",
+                                        padding="same",
                                         use_bias=False,
                                         kernel_initializer=homogen,
                                         depthwise_constraint=FixSum(1.0))(p)
+    K = Fold2D(l, name="fold_K")(K)
+    K = tf.keras.layers.Cropping2D(l, name="crop")(K)
     
     y = tf.keras.layers.Conv2D(1, 1,
                                name="mux",
@@ -87,7 +91,7 @@ class Padding2D(tf.keras.layers.Layer):
     def build(self, input_shape):
         super(Padding2D, self).build(input_shape)
 
-    def call(self, inputs):    
+    def call(self, inputs):
         if (self.data_format == "channels_last"):
             #(batch, depth, rows, cols, channels)
             pad = [[0,0]] + [[i,i] for i in self.padding] + [[0,0]]
@@ -124,6 +128,66 @@ class Padding2D(tf.keras.layers.Layer):
                 'padding': self.padding,
                 'data_format': self.data_format,
                 'name': self.name}
+
+
+# # Add the (flipped) values of the padding area.
+class Fold2D(tf.keras.layers.Layer):
+    def __init__(self, l, data_format="channels_last", **kwargs):
+        self.data_format = data_format
+        self.l = l
+        if data_format != "channels_last":
+            raise NotImplementedError(f"data_format={data_format} not implemented")
+
+
+        super(Fold2D, self).__init__(**kwargs)
         
+    def build(self, input_shape):
+        super(Fold2D, self).build(input_shape)
+
+    def call(self, x):
+        input_shape = tf.shape(x)
+        h = input_shape[1]
+        w = input_shape[2]
+
+        self.hflip = flipmat(self.l, h)
+        self.wflip = flipmat(self.l, w)
+        
+        x = tf.add(x, tf.einsum("ij,kjlm->kilm", self.hflip, x))
+        x = tf.add(x, tf.einsum("ij,kljm->klim", self.wflip, x))
+        return x
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def get_config(self):
+        return {'l': self.l,
+                'data_format': self.data_format,
+                'name': self.name}
+    
+    
+
+def flipmat(l, n, flipend=False):
+    """ Construct a matrix that 'flips' values of a vector along the axis 
+    between elements l-1 and l (0-based).  Only considers values to the left of 
+    the axis: all other values are ignored.
+
+    If endside is True, does it also same for the values at the end of the 
+    vector.
+    """    
+    indices = [[l + i, l - 1 - i] for i in range(l)]
+    values = [1 for i in range(l)]
+
+    if flipend is True:
+        indices += [[n - l - 1 - i, n - l + i] for i in range(l)]
+        values += values
+
+    mat = tf.sparse.to_dense(tf.sparse.reorder(tf.sparse.SparseTensor(indices, values, [n, n])))
+    return tf.cast(mat, tf.keras.backend.floatx())
+
+
+CUSTOM_OBJECTS = {'FixSum': FixSum,
+                  'Padding2D': Padding2D,
+                  'Fold2D': Fold2D}
+
 if __name__ == '__main__':
     main()
