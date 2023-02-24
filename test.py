@@ -5,13 +5,11 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 
 from train import load2, padding
-from model import FixSum, Padding2D, Fold2D
+from model import CUSTOM_OBJECTS
 
 def main():
-    model = tf.keras.models.load_model('checkpoint.hdf5',
-                                       custom_objects={'FixSum': FixSum,
-                                                       'Padding2D': Padding2D,
-                                                       'Fold2D': Fold2D})
+    model = tf.keras.models.load_model('checkpoint.hdf5', 
+                                       custom_objects=CUSTOM_OBJECTS)
     model.summary(positions=[.25, .6, .7, 1.])
     path = os.path.expanduser("~/data/denoise/charge_density/x16/original/")
     fname = "background_density10_negative_10kV_claw0021.hdf"
