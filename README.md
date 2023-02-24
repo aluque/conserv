@@ -64,5 +64,5 @@ The problem is then reduced to creating a network that fits together the $b_I^{(
 ## Additional notes
 1. When the charge density comes from an axi-symmetric simulation the conservation should apply to $r_I q_I$ rather than $q_I$ alone. Here $r_I$ is the $r$-coordinate of the center of the cell. We can just use that for training and inference.
 2. For stability reasons and to keep a clear interpretation of the kernel weights $K_{I}^{(n)}$ we may also constrain them to be nonnegative.
-3. We can deal with the boundaries by extending the input data with some padding where we put the mirror-reflected values. In that manner charge is also conserved close to the axis.
+3. If the kernels $K^{(n)}$ are not symmetric charge is not conserved even if we set a "symmetric" padding around the domain. To ensure charge conservation we can do this: (a) add a zero pad around the boundaries and (b) moving back the charge that exits the domain by reflecting it around the axis. In the code this is implemented in the `Fold2D` class, which uses matrix multiplication (perhaps not very efficient).
 
