@@ -8,7 +8,7 @@ def main():
     model.compile(loss='mse', optimizer='Adam')
 
 
-def buildmodel(filters=32, l=4, m=2):
+def buildmodel(filters=32, l=3, m=3):
     lin_conv_size = 2 * l + 1
     nonlin_conv_size = 2 * m + 1
     
@@ -17,19 +17,32 @@ def buildmodel(filters=32, l=4, m=2):
 
     # Obtaining the weights b and c
     n = Padding2D(name="pad_conv1", padding=[m, m])(inputs)
-    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size,
+    n = tf.keras.layers.Conv2D(filters / 4, nonlin_conv_size,
                                name="conv1",
                                padding="valid",
                                use_bias=True)(n)
     n = tf.keras.layers.LeakyReLU(name="activ1", alpha=0.1)(n)
-    n = tf.keras.layers.Concatenate(name="concat", axis=3)([n, inputs])
+
     
+    n = tf.keras.layers.Concatenate(name="concat2", axis=3)([n, inputs])
     n = Padding2D(name="pad_conv2", padding=[m, m])(n)
-    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size,
+    n = tf.keras.layers.Conv2D(filters / 2, nonlin_conv_size,
                                name="conv2",
                                padding="valid",
                                use_bias=True)(n)
     n = tf.keras.layers.LeakyReLU(name="activ2", alpha=0.1)(n)
+
+    n = tf.keras.layers.Concatenate(name="concat3", axis=3)([n, inputs])
+    n = Padding2D(name="pad_conv3", padding=[m, m])(n)
+    n = tf.keras.layers.Conv2D(filters, nonlin_conv_size,
+                               name="conv3",
+                               padding="valid",
+                               use_bias=True)(n)
+    n = tf.keras.layers.LeakyReLU(name="activ3", alpha=0.1)(n)
+
+    n = tf.keras.layers.LayerNormalization(name="lnorm", axis=3)(n)
+    n = tf.keras.layers.GaussianNoise(0.2, name="noise")(n)
+    
     n = tf.keras.layers.Softmax(name="softmax", axis=3)(n)
 
 
