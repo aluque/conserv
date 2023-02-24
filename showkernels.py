@@ -12,8 +12,7 @@ except OSError:
 from train import load2
 from model import CUSTOM_OBJECTS
 
-def main():
-    
+def main(savefigs=False):    
     model = tf.keras.models.load_model('checkpoint.hdf5',
                                        custom_objects=CUSTOM_OBJECTS)
     K = model.get_layer("K").get_weights()[0]
@@ -23,6 +22,8 @@ def main():
     for i in range(32):
         ax = plt.subplot(4, 8, i + 1)
         ax.matshow(K[:, :, i])
+    if savefigs:
+        plt.savefig("kernels.pdf")
 
     probing_layer = tf.keras.Model(inputs=model.input,
                                    outputs=model.get_layer("softmax").output)
@@ -33,7 +34,6 @@ def main():
     q1 = q1.reshape((1, *q1.shape))
 
     c = probing_layer.predict(q1)
-    plt.savefig("kernels.pdf")
     
     plt.figure("weights", figsize=(20, 10))
     plt.suptitle("Partition coeffs $c^{(n)}$", size=16)
@@ -56,7 +56,9 @@ def main():
             else:
                 ax.set_ylabel("z (px)")
                 
-    plt.savefig("partition.pdf")
+    if savefigs:
+        plt.savefig("partition.pdf")
+
     plt.show()
     
 if __name__ == '__main__':
