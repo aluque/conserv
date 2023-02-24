@@ -41,10 +41,10 @@ def buildmodel(filters=32, l=3, m=3):
     n = tf.keras.layers.LeakyReLU(name="activ3", alpha=0.1)(n)
 
     n = tf.keras.layers.LayerNormalization(name="lnorm", axis=3)(n)
-    n = tf.keras.layers.GaussianNoise(0.2, name="noise")(n)
+    #n = tf.keras.layers.GaussianNoise(0.1, name="noise")(n)
     
     n = tf.keras.layers.Softmax(name="softmax", axis=3)(n)
-
+    n = tf.keras.layers.SpatialDropout2D(0.2, name="dropout")(n)
 
     # Expansion in the channels direction (copying)
     x = tf.keras.layers.Conv2D(filters, 1, name="demux",
