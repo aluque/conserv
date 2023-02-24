@@ -36,11 +36,13 @@ def main():
 
 def plotq(q, name="", vmax=None):
     plt.figure(name)
+    plt.suptitle(name, size=14)
     if vmax is None:
         vmax = np.max(abs(q))
     
     plt.pcolormesh(q, vmin=-vmax, vmax=vmax, cmap="bwr")
     plt.colorbar()
+    plt.savefig("%s.pdf" % name)
     
 
 if __name__ == '__main__':

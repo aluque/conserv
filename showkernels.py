@@ -33,7 +33,8 @@ def main():
     q1 = q1.reshape((1, *q1.shape))
 
     c = probing_layer.predict(q1)
-
+    plt.savefig("kernels.pdf")
+    
     plt.figure("weights", figsize=(20, 10))
     plt.suptitle("Partition coeffs $c^{(n)}$", size=16)
     for i in range(4):
@@ -55,6 +56,7 @@ def main():
             else:
                 ax.set_ylabel("z (px)")
                 
+    plt.savefig("partition.pdf")
     plt.show()
     
 if __name__ == '__main__':
