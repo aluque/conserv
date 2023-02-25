@@ -24,7 +24,7 @@ def main():
     print(f"{qtotal0=}\n{qtotal1=}")
     print(q0.shape, q1.shape)
     
-    vmax = 0.3
+    vmax = 1.6
     plotq(q[:, :, 0], name="original", vmax=vmax)
     plotq(q1[0, :, :, 0], name="noisy", vmax=vmax)
     plotq(q0[0, :, :, 0], name="reconstructed", vmax=vmax)

@@ -19,10 +19,12 @@ def main():
     print(f"{workers=}")
     cp = tf.keras.callbacks.ModelCheckpoint('checkpoint.hdf5', monitor='loss', mode='min',
                                             verbose=1, save_best_only=True)
+    log = tf.keras.callbacks.CSVLogger("training.csv")
+    
     model.compile(loss='mse', optimizer='Adam')
     r = model.fit(ds, epochs=1000, batch_size=BATCH_SIZES[0],
                   use_multiprocessing=True, verbose=2, workers=workers,
-                  callbacks=(cp,))
+                  callbacks=(cp,log))
 
 
 def dataset(path=os.path.expanduser("~/data/denoise/charge_density/x16/original/")):
@@ -41,14 +43,21 @@ def dataset(path=os.path.expanduser("~/data/denoise/charge_density/x16/original/
     return ds
 
 
-def loadq(filename):
+def loadq(filename, zero_patch=(np.s_[0:150], np.s_[0:20])):
     file = h5py.File(filename, mode='r')   # loading the hdf5 file
 
     patch = list(file.keys())[0]        # name of the first group contained in the file
     group = file[patch]                 # first group
     dataset = list(group.keys())[0]     # name of the first dataset in the group (c-density)
     q = np.array(group[dataset]).astype('float32', copy = False)
+    if not zero_patch is None:
+        q[zero_patch[0], zero_patch[1]] = 0
+        
     file.close()
+
+    r = 0.5 + np.arange(q.shape[1])
+    q = q * r
+    
 
     return q
 
