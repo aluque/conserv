@@ -17,11 +17,20 @@ def main(savefigs=False):
                                        custom_objects=CUSTOM_OBJECTS)
     K = model.get_layer("K").get_weights()[0]
     
-    plt.figure("kernels", figsize=(20, 10))
+    fig = plt.figure("kernels", figsize=(20, 10))
     plt.suptitle("Kernels $K^{(n)}$", size=16)
+    vmax = np.max(K)
     for i in range(32):
         ax = plt.subplot(4, 8, i + 1)
-        ax.matshow(K[:, :, i])
+        #p = ax.matshow(K[:, :, i], cmap="inferno", vmin=0, vmax=vmax)
+        p = ax.pcolormesh(np.squeeze(K[:, :, i]), cmap="inferno", vmin=0, vmax=vmax)
+        ax.set_xticks(np.arange(K.shape[1]))
+        ax.set_yticks(np.arange(K.shape[0]))
+        ax.set_aspect("equal")
+        
+    cbar = fig.add_axes([0.92, 0.1, 0.02, 0.8])
+    plt.colorbar(p, cax=cbar)
+    
     if savefigs:
         plt.savefig("kernels.pdf")
 
@@ -35,13 +44,13 @@ def main(savefigs=False):
 
     c = probing_layer.predict(q1)
     
-    plt.figure("weights", figsize=(20, 10))
+    fig = plt.figure("weights", figsize=(20, 10))
     plt.suptitle("Partition coeffs $c^{(n)}$", size=16)
     for i in range(4):
         for j in range(8):
             n = i * 8 + j
             ax = plt.subplot(4, 8, n + 1)
-            ax.pcolormesh(c[0, :, :, n], vmin=0, vmax=1, cmap="gnuplot2")
+            p = ax.pcolormesh(c[0, :, :, n], vmin=0, vmax=1, cmap="inferno")
             
             if i != 3:
                 ticks = ax.get_xticks()
@@ -55,7 +64,10 @@ def main(savefigs=False):
 
             else:
                 ax.set_ylabel("z (px)")
-                
+
+    cbar = fig.add_axes([0.92, 0.1, 0.02, 0.8])
+    plt.colorbar(p, cax=cbar)
+
     if savefigs:
         plt.savefig("partition.pdf")
 
