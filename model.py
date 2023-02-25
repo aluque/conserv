@@ -1,5 +1,5 @@
 import tensorflow as tf
-
+from keras import backend as K
 
 
 def main():
@@ -22,7 +22,6 @@ def buildmodel(filters=32, l=3, m=3):
                                padding="valid",
                                use_bias=True)(n)
     n = tf.keras.layers.LeakyReLU(name="activ1", alpha=0.1)(n)
-
     
     n = tf.keras.layers.Concatenate(name="concat2", axis=3)([n, inputs])
     n = Padding2D(name="pad_conv2", padding=[m, m])(n)
@@ -44,7 +43,7 @@ def buildmodel(filters=32, l=3, m=3):
     #n = tf.keras.layers.GaussianNoise(0.1, name="noise")(n)
     
     n = tf.keras.layers.Softmax(name="softmax", axis=3)(n)
-    n = tf.keras.layers.SpatialDropout2D(0.2, name="dropout")(n)
+    # n = tf.keras.layers.SpatialDropout2D(0.1, name="dropout")(n)
 
     # Expansion in the channels direction (copying)
     x = tf.keras.layers.Conv2D(filters, 1, name="demux",
@@ -55,21 +54,23 @@ def buildmodel(filters=32, l=3, m=3):
     p = tf.keras.layers.Multiply(name="partition")([x, n])
 
     p = tf.keras.layers.ZeroPadding2D(name="pad_K", padding=[l, l])(p)
+
     homogen = tf.keras.initializers.Constant(1/lin_conv_size**2)
-    K = tf.keras.layers.DepthwiseConv2D(lin_conv_size,
+    c = tf.keras.layers.DepthwiseConv2D(lin_conv_size,
                                         name="K",
                                         padding="same",
                                         use_bias=False,
                                         kernel_initializer=homogen,
-                                        depthwise_constraint=FixSum(1.0))(p)
-    K = Fold2D(l, name="fold_K")(K)
-    K = tf.keras.layers.Cropping2D(l, name="crop")(K)
+                                        depthwise_constraint=FixSumBias(1.0))(p)
+
+    c = Fold2D(l, name="fold_K")(c)
+    c = tf.keras.layers.Cropping2D(l, name="crop")(c)
     
     y = tf.keras.layers.Conv2D(1, 1,
                                name="mux",
                                padding="same", use_bias=False,
                                kernel_initializer=tf.keras.initializers.Ones(),
-                               trainable=False)(K)
+                               trainable=False)(c)
     
     model = tf.keras.Model(inputs=inputs, outputs=y)
     return model
@@ -86,6 +87,41 @@ class FixSum(tf.keras.constraints.Constraint):
         w1 = w * tf.cast(tf.greater_equal(w, 0.0), tf.keras.backend.floatx())
         s = tf.reduce_sum(w1, axis=[0, 1])
         return self.ref_value * w1 / s
+
+    def get_config(self):
+        return {'ref_value': self.ref_value}
+
+
+class FixSumSoftmax(tf.keras.constraints.Constraint):
+    """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
+    in the spatial dimensions. """
+  
+    def __init__(self, ref_value):
+        self.ref_value = ref_value
+
+    def __call__(self, w):
+        w1 = tf.keras.activations.softmax(w, axis=[0, 1])
+        return self.ref_value * w1
+
+    def get_config(self):
+        return {'ref_value': self.ref_value}
+
+class FixSumBias(tf.keras.constraints.Constraint):
+    """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
+    in the spatial dimensions. """
+  
+    def __init__(self, ref_value):
+        self.ref_value = ref_value
+
+    def __call__(self, w):
+        # Add vmin only if negative
+        wneg = w * tf.cast(tf.less_equal(w, 0.0), tf.keras.backend.floatx())
+        vmin = tf.reduce_min(wneg, axis=[0, 1])
+        w = w - vmin
+        s = tf.reduce_sum(w, axis=[0, 1])
+        w1 = w / s
+        
+        return self.ref_value * w1
 
     def get_config(self):
         return {'ref_value': self.ref_value}
@@ -199,8 +235,11 @@ def flipmat(l, n, flipend=False):
 
 
 CUSTOM_OBJECTS = {'FixSum': FixSum,
+                  'FixSumSoftmax': FixSumSoftmax,
                   'Padding2D': Padding2D,
-                  'Fold2D': Fold2D}
+                  'Fold2D': Fold2D,
+                  'FixSumBias': FixSumBias
+                  }
 
 if __name__ == '__main__':
     main()
