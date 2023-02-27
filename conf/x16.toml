@@ -1,0 +1,5 @@
+# Config for x16 rescaling
+resample_factor = 16
+
+workers = 4
+training_batch = 4

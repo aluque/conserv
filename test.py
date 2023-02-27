@@ -6,15 +6,14 @@ from matplotlib import pyplot as plt
 
 from train import load2, padding
 from model import CUSTOM_OBJECTS
+from conf import CONF
 
 def main():
-    model = tf.keras.models.load_model('checkpoint.hdf5', 
+    model = tf.keras.models.load_model(CONF["model_weights"], 
                                        custom_objects=CUSTOM_OBJECTS)
     model.summary(positions=[.25, .6, .7, 1.])
-    path = os.path.expanduser("~/data/denoise/charge_density/x16/original/")
-    fname = "background_density10_negative_10kV_claw0021.hdf"
 
-    q1, q = load2(os.path.join(path, fname))
+    q1, q = load2(CONF["sample_file_path"])
 
     q1 = q1.reshape((1, *q1.shape))
     q0 = model.predict(q1)

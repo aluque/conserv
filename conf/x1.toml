@@ -1,0 +1,6 @@
+# Config for x4 rescaling
+resample_factor = 1
+dataset_path = "~/data/denoise/charge_density/"
+
+workers = 4
+training_batch = 4

@@ -11,9 +11,12 @@ except OSError:
 
 from train import load2
 from model import CUSTOM_OBJECTS
+from conf import CONF
 
-def main(savefigs=False):    
-    model = tf.keras.models.load_model('checkpoint.hdf5',
+def main(savefigs=False):
+    os.makedirs(CONF["plots_path"], exist_ok=True)
+
+    model = tf.keras.models.load_model(CONF['model_weights'],
                                        custom_objects=CUSTOM_OBJECTS)
     K = model.get_layer("K").get_weights()[0]
     
@@ -32,14 +35,12 @@ def main(savefigs=False):
     plt.colorbar(p, cax=cbar)
     
     if savefigs:
-        plt.savefig("kernels.pdf")
+        plt.savefig(os.path.join(CONF["plots_path"], "kernels.pdf"))
 
     probing_layer = tf.keras.Model(inputs=model.input,
                                    outputs=model.get_layer("softmax").output)
 
-    path = os.path.expanduser("~/data/denoise/charge_density/x16/original/")
-    fname = "background_density10_negative_10kV_claw0021.hdf"
-    q1, q = load2(os.path.join(path, fname))
+    q1, q = load2(CONF["sample_file_path"])
     q1 = q1.reshape((1, *q1.shape))
 
     c = probing_layer.predict(q1)
@@ -69,7 +70,7 @@ def main(savefigs=False):
     plt.colorbar(p, cax=cbar)
 
     if savefigs:
-        plt.savefig("partition.pdf")
+        plt.savefig(os.path.join(CONF["plots_path"], "partition.pdf"))
 
     plt.show()
     
