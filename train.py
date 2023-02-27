@@ -11,7 +11,11 @@ BATCH_SIZES = (8, 4, 1) # Batch size for datasets (training, validation, test = 
 WORKERS = cpu_count()   # Number of CPUs for parallel operations
 
 def main():
-    model = buildmodel(l=4, m=3)
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+
+    with mirrored_strategy.scope():
+        model = buildmodel(l=4, m=3)
+
     model.summary()
 
     ds = dataset()
