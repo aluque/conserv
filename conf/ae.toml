@@ -1,0 +1,6 @@
+# Config to plot autoencoder results
+resample_factor = 1
+dataset_path = "~/data/denoise/charge_density/"
+sample_file_name="background_density10_negative_10kV_claw0021.hdf"
+model_weights = "~/projects/jumc/autoencoder/modelo_20221214"
+cylindrical = false

@@ -78,9 +78,9 @@ def loadq(filename):
         
     file.close()
 
-    r = 0.5 + np.arange(q.shape[1])
-    q = q * r
-    
+    if CONF["cylindrical"]:
+        r = 0.5 + np.arange(q.shape[1])
+        q = q * r
 
     return q
 

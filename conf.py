@@ -70,5 +70,5 @@ def expand(d, root=None):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", help="Input parameters", default=None)
-args = parser.parse_args()
+args, unknown = parser.parse_known_args()
 CONF = load_conf(args.i)
