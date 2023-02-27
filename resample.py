@@ -4,9 +4,23 @@ import glob
 import h5py
 import numpy as np
 
-def main(path=os.path.expanduser("~/data/denoise/charge_density")):
+
+def get_parser():
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", help="Path with original files",
+                        default=os.path.expanduser("~/data/denoise/charge_density"))
+    parser.add_argument("-x", help="Reduction factor", type=int)
+    
+    return parser
+
+
+def main():
+    parser = get_parser()
+    args = parser.parse_args()
     for subset in ["original", "noisy_50"]:
-        resample(path, subset, 16)
+        resample(args.path, subset, args.x)
 
 def resample(path, subset, step):
     rpath = os.path.join(path, "x%d" % step, subset)
