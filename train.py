@@ -35,6 +35,8 @@ def dataset(path=os.path.expanduser("~/data/denoise/charge_density/x16/original/
     AUTOTUNE = tf.data.AUTOTUNE
 
     ds = tf.data.Dataset.list_files(os.path.join(path, "*.hdf"), seed=SEED, shuffle=True)
+    ds = ds.shuffle(buffer_size = 10000, seed = SEED,
+                    reshuffle_each_iteration = True)
     ds = ds.map(lambda fname: tf.py_function(func = load2, inp=[fname],
                                              Tout=(tf.float32, tf.float32)),
                 num_parallel_calls=AUTOTUNE, deterministic=True)
