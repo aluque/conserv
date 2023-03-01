@@ -18,7 +18,7 @@ def main():
     os.makedirs(CONF["output_path"], exist_ok=True)
 
     ds = dataset(path=CONF['dataset_path'])
-    cp = tf.keras.callbacks.ModelCheckpoint(CONF['model_weights'],
+    cp = tf.keras.callbacks.ModelCheckpoint(CONF['saved_model'],
                                             monitor='loss', mode='min',
                                             verbose=1, save_best_only=True)
     log = tf.keras.callbacks.CSVLogger(CONF['training_log'])

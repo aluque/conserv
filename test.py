@@ -22,7 +22,7 @@ def get_parser():
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    model = tf.keras.models.load_model(CONF["model_weights"], 
+    model = tf.keras.models.load_model(CONF["saved_model"], 
                                        custom_objects=CUSTOM_OBJECTS)
     model.summary(positions=[.25, .6, .7, 1.])
 

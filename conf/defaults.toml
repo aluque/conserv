@@ -7,7 +7,8 @@ plots_path = "{output_path}/plots"
 sample_file_name="background_density10_negative_10kV_claw0021.hdf"
 sample_file_path = "{dataset_path}/original/{sample_file_name}"
 noisy_samples = "noisy_50"
-model_weights = "{output_path}/checkpoint.hdf5"
+h5_model = "{output_path}/checkpoint.hdf5"
+saved_model = "{output_path}/model"
 training_log = "{output_path}/training.csv"
 cylindrical = true
 

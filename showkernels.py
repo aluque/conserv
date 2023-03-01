@@ -16,7 +16,7 @@ from conf import CONF
 def main(savefigs=False):
     os.makedirs(CONF["plots_path"], exist_ok=True)
 
-    model = tf.keras.models.load_model(CONF['model_weights'],
+    model = tf.keras.models.load_model(CONF['saved_model'],
                                        custom_objects=CUSTOM_OBJECTS)
     K = model.get_layer("K").get_weights()[0]
     
