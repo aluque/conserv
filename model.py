@@ -119,7 +119,10 @@ class FixSumBias(tf.keras.constraints.Constraint):
         vmin = tf.reduce_min(wneg, axis=[0, 1])
         w = w - vmin
         s = tf.reduce_sum(w, axis=[0, 1])
-        w1 = w / s
+
+        # I don't think a nan can result here but just in case we add a small
+        # offset.
+        w1 = w / (s + 1e-4)
         
         return self.ref_value * w1
 

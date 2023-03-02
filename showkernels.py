@@ -13,7 +13,7 @@ from train import load2
 from model import CUSTOM_OBJECTS
 from conf import CONF
 
-def main(savefigs=False):
+def main(savefigs=True):
     os.makedirs(CONF["plots_path"], exist_ok=True)
 
     model = tf.keras.models.load_model(CONF['saved_model'],
@@ -47,11 +47,12 @@ def main(savefigs=False):
     
     fig = plt.figure("weights", figsize=(20, 10))
     plt.suptitle("Partition coeffs $c^{(n)}$", size=16)
+    s = 16 // CONF["resample_factor"]
     for i in range(4):
         for j in range(8):
             n = i * 8 + j
             ax = plt.subplot(4, 8, n + 1)
-            p = ax.pcolormesh(c[0, :, :, n], vmin=0, vmax=1, cmap="inferno")
+            p = ax.pcolormesh(c[0, ::s, ::s, n], vmin=0, vmax=1, cmap="inferno")
             
             if i != 3:
                 ticks = ax.get_xticks()

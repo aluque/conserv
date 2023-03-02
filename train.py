@@ -22,8 +22,10 @@ def main():
                                             monitor='loss', mode='min',
                                             verbose=1, save_best_only=True)
     log = tf.keras.callbacks.CSVLogger(CONF['training_log'])
+    optimizer = tf.keras.optimizers.Adam(clipvalue=100,
+                                         weight_decay=CONF["weight_decay"])
     
-    model.compile(loss=CONF["loss"], optimizer=CONF["optimizer"])
+    model.compile(loss=CONF["loss"], optimizer=optimizer)
     r = model.fit(ds,
                   epochs     = CONF["epochs"],
                   batch_size = CONF["training_batch"],

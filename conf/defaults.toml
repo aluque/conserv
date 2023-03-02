@@ -16,9 +16,9 @@ workers = 4
 seed = 2021
 training_batch = 4
 loss = "mse"
-optimizer = "Adam"
 epochs = 1000
 fit_verbose = 2
+weight_decay = 0.01
 
 [zero_patch]
 height = 2400
