@@ -10,22 +10,23 @@ from conf import CONF
 def main():
     mirrored_strategy = tf.distribute.MirroredStrategy()
 
-    with mirrored_strategy.scope():
-        model = buildmodel(l=4, m=3)
-
-    model.summary()
-
     os.makedirs(CONF["output_path"], exist_ok=True)
 
     ds = dataset(path=CONF['dataset_path'])
-    cp = tf.keras.callbacks.ModelCheckpoint(CONF['saved_model'],
-                                            monitor='loss', mode='min',
-                                            verbose=1, save_best_only=True)
-    log = tf.keras.callbacks.CSVLogger(CONF['training_log'])
-    optimizer = tf.keras.optimizers.Adam(clipvalue=100,
-                                         weight_decay=CONF["weight_decay"])
+
+    with mirrored_strategy.scope():
+        model = buildmodel(l=CONF['l'], m=CONF['m'])
+
+
+        cp = tf.keras.callbacks.ModelCheckpoint(CONF['saved_model'],
+                                                monitor='loss', mode='min',
+                                                verbose=1, save_best_only=True)
+        log = tf.keras.callbacks.CSVLogger(CONF['training_log'])
+        optimizer = tf.keras.optimizers.Adam(clipvalue=100,
+                                             decay=CONF["weight_decay"])
     
-    model.compile(loss=CONF["loss"], optimizer=optimizer)
+        model.compile(loss=CONF["loss"], optimizer=optimizer)
+
     r = model.fit(ds,
                   epochs     = CONF["epochs"],
                   batch_size = CONF["training_batch"],
@@ -34,6 +35,7 @@ def main():
                   use_multiprocessing=True,
                   callbacks=(cp,log))
 
+    model.summary()
 
 def dataset(path=""):
     AUTOTUNE = tf.data.AUTOTUNE
