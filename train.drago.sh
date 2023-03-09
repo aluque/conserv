@@ -2,6 +2,12 @@
 #SBATCH -t 2-00:00:00
 #SBATCH -n 8
 
+UNAME_FULL=`uname -a`
+DATE=`date`
+
+echo "# [${DATE}]"
+echo "# ${UNAME_FULL}"
+
 module load GCC/10.2.0
 module load CUDA/11.1.1
 
