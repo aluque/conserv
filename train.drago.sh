@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 2-00:00:00
+#SBATCH -t 7-00:00:00
 #SBATCH -n 8
 
 UNAME_FULL=`uname -a`
