@@ -1,28 +1,72 @@
-# Default config
+# Default config. Values are overrriden with -i final_config.toml
+
+# Resample factor. If >1, the data is downsampled.
 resample_factor = 16
+
+# Name of the model.  If called as -i name.toml it is overriden by 'name'
 name = "default"
+
+# Location of the training dataset
 dataset_path = "~/data/denoise/charge_density/x{resample_factor}"
+
+# Location of the saved trained weights
 output_path = "~/data/denoise/conserv/{name}"
+
+# Location for plots
 plots_path = "{output_path}/plots"
+
+# Filename to plot a sample
 sample_file_name="background_density10_negative_10kV_claw0021.hdf"
+
+# Full path of $sample_file_name
 sample_file_path = "{dataset_path}/original/{sample_file_name}"
+
+# Location of noisy samples within $dataset_path
 noisy_samples = "noisy_50"
+
+# Name of the saved h5 model
 h5_model = "{output_path}/checkpoint.hdf5"
+
+# Location of the trained weights
 saved_model = "{output_path}/model"
+
+# Log for training losses
 training_log = "{output_path}/training.csv"
+
+# Use cylindrical symmetry?
 cylindrical = true
 
+# No. of tensorflow workers
 workers = 4
+
+# Random seed for reproducibility
 seed = 2021
+
+# Batch size
 training_batch = 4
+
+# Type of loss function (see TF docs)
 loss = "mse"
+
+# Max. number of epochs
 epochs = 1000
+
+# verbose option to keras fit
 fit_verbose = 2
+
+# Weight decay
 weight_decay = 0.01
+
+# Size of convolution charge-conserving kernels is 2l+1
 l = 4
+
+# Size of the convolutions in the partition network.
 m = 3
+
+# Number of cc filters
 filters = 32
 
+# Remove a patch from the data; this is the pseudo-electrode location
 [zero_patch]
 height = 2400
 width = 320
