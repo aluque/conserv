@@ -1,0 +1,20 @@
+# Resample factor. If >1, the data is downsampled.
+resample_factor = 1
+
+# Location of the training dataset
+dataset_path = "~/data/denoise/charge_density/"
+
+# Sub-folder within dataset_path where the noisy samples are stored
+noisy_samples = "noisy_50"
+
+# No. of tensorflow workers
+workers = 4
+
+# Batch size
+training_batch = 2
+
+# Size of convolution charge-conserving kernels is 2l+1
+l = 6
+
+# Size of the convolutions in the partition network.
+m = 4
