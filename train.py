@@ -12,22 +12,23 @@ def main():
 
     os.makedirs(CONF["output_path"], exist_ok=True)
 
-    ds = dataset(path=CONF['dataset_path'])
+    (ds, val) = dataset(path=CONF['dataset_path'])
 
     with mirrored_strategy.scope():
-        model = buildmodel(l=CONF['l'], m=CONF['m'])
+        model = buildmodel(filters=CONF['filters'], l=CONF['l'], m=CONF['m'])
 
 
         cp = tf.keras.callbacks.ModelCheckpoint(CONF['saved_model'],
-                                                monitor='loss', mode='min',
+                                                monitor='val_loss', mode='min',
                                                 verbose=1, save_best_only=True)
         log = tf.keras.callbacks.CSVLogger(CONF['training_log'])
-        optimizer = tf.keras.optimizers.Adam(clipvalue=100,
-                                             decay=CONF["weight_decay"])
+        optimizer = tf.keras.optimizers.legacy.Adam(clipvalue=100,
+                                                    decay=CONF["weight_decay"])
     
         model.compile(loss=CONF["loss"], optimizer=optimizer)
 
     r = model.fit(ds,
+                  validation_data = val,                  
                   epochs     = CONF["epochs"],
                   batch_size = CONF["training_batch"],
                   workers    = CONF["workers"],
@@ -37,24 +38,34 @@ def main():
 
     model.summary()
 
-def dataset(path=""):
+def dataset(path="", train_ratio=0.8):
     AUTOTUNE = tf.data.AUTOTUNE
 
-    ds = tf.data.Dataset.list_files(os.path.join(path, "original", "*.hdf"),
-                                    seed=CONF["seed"], shuffle=True)
-    ds = ds.shuffle(buffer_size = 10000, seed=CONF["seed"],
-                    reshuffle_each_iteration = True)
-    ds = ds.map(lambda fname: tf.py_function(func = load2, inp=[fname],
-                                             Tout=(tf.float32, tf.float32)),
-                num_parallel_calls=AUTOTUNE, deterministic=True)
+    all_files = tf.data.Dataset.list_files(os.path.join(path, "original", "*.hdf"),
+                                           seed=CONF["seed"], shuffle=True)
 
-    ds = ds.batch(CONF["training_batch"])
-    ds = ds.prefetch(AUTOTUNE)
-    options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.AUTO
-    ds = ds.with_options(options)
-    return ds
+    nfiles = len(all_files)
+    train_size = int(train_ratio * nfiles)
+    train_files = all_files.take(train_size)
+    val_files = all_files.skip(train_size)
+    
+    def create_dataset(files):
+        ds = files.shuffle(buffer_size = 10000, seed=CONF["seed"],
+                           reshuffle_each_iteration = True)
+        ds = ds.map(lambda fname: tf.py_function(func = load2, inp=[fname],
+                                                 Tout=(tf.float32, tf.float32)),
+                    num_parallel_calls=AUTOTUNE, deterministic=True)
 
+        ds = ds.batch(CONF["training_batch"])
+        ds = ds.prefetch(AUTOTUNE)
+        options = tf.data.Options()
+        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.AUTO
+        return ds.with_options(options)
+
+    train = create_dataset(train_files)
+    val = create_dataset(val_files)
+
+    return (train, val)
 
 def loadq(filename):
     if "zero_patch" in CONF:
