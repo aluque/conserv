@@ -21,6 +21,7 @@ fit_verbose = 2
 weight_decay = 0.01
 l = 4
 m = 3
+filters = 32
 
 [zero_patch]
 height = 2400
