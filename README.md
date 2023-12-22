@@ -6,6 +6,27 @@ fontsize: 12pt
 ---
 
 # Charge-conserving denoiser
+This repository contains the code and training weights for the charge-conserving model presented in 
+"Efficient Monte Carlo simulation of streamer discharges with machine-learning denoising models" by
+M. Bayo, A. Malagón-Romero and A. Luque.
+
+## Instalation and use
+Besides tensorflow the code depends on numpy and h5py.
+
+To train a model the code should be invoked as
+```
+python train.py -i conf/configuration.toml
+```
+
+In the `conf` folder we provide the configuration for the model described in the paper (`x1-l6m4-p50.conf`). 
+See also `conf/defaults.toml` for additional parameters.
+
+## Pre-trained weights
+The weights used in the paper are stored under the `weights` folder:
+- `x1-l6m4-p50`contains the charge-conserving weights.
+- `avg-l6` contains the window-averaging model. These weights are not trained and defined in `averaging_model.py`.
+
+## Short explanation
 One way to impose exact charge conservation in a convolution is to ensure that all the kernel elements
 add to 1.  Let $K_I$ be the kernel elements where $I$ is a 2d index tuple. If $q_I$ is the original 
 charge density in pixel $I$ after convolution we have
