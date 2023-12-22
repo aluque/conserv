@@ -1,10 +1,3 @@
----
-# Use with pandoc ... --pdf-engine=xelatex
-mainfont: Times Roman
-geometry: left=2cm,right=2cm,top=2cm,bottom=2cm
-fontsize: 12pt
----
-
 # Charge-conserving denoiser
 This repository contains the code and training weights for the charge-conserving model presented in 
 "Efficient Monte Carlo simulation of streamer discharges with machine-learning denoising models" by
