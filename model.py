@@ -8,7 +8,7 @@ def main():
     model.compile(loss='mse', optimizer='Adam')
 
 
-def buildmodel(filters=32, l=3, m=3):
+def buildmodel(filters=32, l=3, m=3, concat_input=False):
     lin_conv_size = 2 * l + 1
     nonlin_conv_size = 2 * m + 1
     
@@ -74,6 +74,9 @@ def buildmodel(filters=32, l=3, m=3):
                                kernel_initializer=tf.keras.initializers.Ones(),
                                trainable=False)(c)
     
+    if concat_input:
+        y = tf.keras.layers.Concatenate()([y, inputs])
+
     model = tf.keras.Model(inputs=inputs, outputs=y)
     return model
 
