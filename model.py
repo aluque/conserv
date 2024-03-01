@@ -15,6 +15,8 @@ def buildmodel(filters=32, l=3, m=3):
     input_size = (None, None, 1)
     inputs = tf.keras.Input(shape = input_size, name = "inputs")
 
+    initializer = GaussianInitializer(l, l / 3)
+
     # Obtaining the weights b and c
     n = Padding2D(name="pad_conv1", padding=[m, m])(inputs)
     n = tf.keras.layers.Conv2D(filters / 4, nonlin_conv_size,
@@ -60,7 +62,7 @@ def buildmodel(filters=32, l=3, m=3):
                                         name="K",
                                         padding="same",
                                         use_bias=False,
-                                        kernel_initializer=homogen,
+                                        kernel_initializer=initializer,
                                         depthwise_constraint=FixSumBias(1.0))(p)
 
     c = Fold2D(l, name="fold_K")(c)
@@ -74,6 +76,32 @@ def buildmodel(filters=32, l=3, m=3):
     
     model = tf.keras.Model(inputs=inputs, outputs=y)
     return model
+
+
+def gaussian_kernel(l, std):
+    """Generates a 2D Gaussian kernel."""
+    norm = 1 / (std * np.sqrt(2 * np.pi))
+    vals = tf.exp(-tf.square(tf.range(start=-l, limit=l + 1, dtype=tf.float32) / std) / 2) / norm
+    gauss_kernel = tf.einsum('i,j->ij', vals, vals)
+    return gauss_kernel / tf.reduce_sum(gauss_kernel)
+
+
+class GaussianInitializer(tf.keras.initializers.Initializer):
+    """Initializer that generates a Gaussian kernel."""
+    def __init__(self, l, std):
+        self.l = l
+        self.std = std
+
+    def __call__(self, shape, dtype=None):
+        # The Gaussian kernel is 2D. Ensure the shape is compatible.
+        print(shape)
+        assert len(shape) == 4
+        kernel = gaussian_kernel(self.l, self.std)
+        # Expand to the shape of the convolutional filters.
+        gauss_kernel = tf.expand_dims(kernel, -1)
+        gauss_kernel = tf.expand_dims(gauss_kernel, -1)
+        print(tf.tile(gauss_kernel, [1, 1, shape[2], shape[3]]).shape)
+        return tf.tile(gauss_kernel, [1, 1, shape[3], shape[3]])
 
 
 class FixSum(tf.keras.constraints.Constraint):
