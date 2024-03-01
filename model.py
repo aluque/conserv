@@ -272,7 +272,8 @@ CUSTOM_OBJECTS = {'FixSum': FixSum,
                   'FixSumSoftmax': FixSumSoftmax,
                   'Padding2D': Padding2D,
                   'Fold2D': Fold2D,
-                  'FixSumBias': FixSumBias
+                  'FixSumBias': FixSumBias,
+                  '<lambda>': lambda x: None
                   }
 
 if __name__ == '__main__':
