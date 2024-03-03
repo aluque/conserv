@@ -11,7 +11,7 @@ def main():
 def buildmodel(filters=32, l=3, m=3, concat_input=False):
     lin_conv_size = 2 * l + 1
     nonlin_conv_size = 2 * m + 1
-    
+
     input_size = (None, None, 1)
     inputs = tf.keras.Input(shape = input_size, name = "inputs")
 
@@ -24,7 +24,7 @@ def buildmodel(filters=32, l=3, m=3, concat_input=False):
                                padding="valid",
                                use_bias=True)(n)
     n = tf.keras.layers.LeakyReLU(name="activ1", alpha=0.1)(n)
-    
+
     n = tf.keras.layers.Concatenate(name="concat2", axis=3)([n, inputs])
     n = Padding2D(name="pad_conv2", padding=[m, m])(n)
     n = tf.keras.layers.Conv2D(filters / 2, nonlin_conv_size,
@@ -41,9 +41,12 @@ def buildmodel(filters=32, l=3, m=3, concat_input=False):
                                use_bias=True)(n)
     n = tf.keras.layers.LeakyReLU(name="activ3", alpha=0.1)(n)
 
-    n = tf.keras.layers.LayerNormalization(name="lnorm", axis=3)(n)
+    n = tf.keras.layers.LayerNormalization(name="lnorm",
+                                           center=CONF["center_scale_norm"],
+                                           scale=CONF["center_scale_norm"],
+                                           axis=3)(n)
     #n = tf.keras.layers.GaussianNoise(0.1, name="noise")(n)
-    
+
     n = tf.keras.layers.Softmax(name="softmax", axis=3)(n)
     # n = tf.keras.layers.SpatialDropout2D(0.1, name="dropout")(n)
 
@@ -67,13 +70,13 @@ def buildmodel(filters=32, l=3, m=3, concat_input=False):
 
     c = Fold2D(l, name="fold_K")(c)
     c = tf.keras.layers.Cropping2D(l, name="crop")(c)
-    
+
     y = tf.keras.layers.Conv2D(1, 1,
                                name="mux",
                                padding="same", use_bias=False,
                                kernel_initializer=tf.keras.initializers.Ones(),
                                trainable=False)(c)
-    
+
     if concat_input:
         y = tf.keras.layers.Concatenate()([y, inputs])
 
@@ -108,9 +111,9 @@ class GaussianInitializer(tf.keras.initializers.Initializer):
 
 
 class FixSum(tf.keras.constraints.Constraint):
-    """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
+    """ Constrains weight tensors to be nonnegative and add up to `ref_value`
     in the spatial dimensions. """
-  
+
     def __init__(self, ref_value):
         self.ref_value = ref_value
 
@@ -124,9 +127,9 @@ class FixSum(tf.keras.constraints.Constraint):
 
 
 class FixSumSoftmax(tf.keras.constraints.Constraint):
-    """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
+    """ Constrains weight tensors to be nonnegative and add up to `ref_value`
     in the spatial dimensions. """
-  
+
     def __init__(self, ref_value):
         self.ref_value = ref_value
 
@@ -138,9 +141,9 @@ class FixSumSoftmax(tf.keras.constraints.Constraint):
         return {'ref_value': self.ref_value}
 
 class FixSumBias(tf.keras.constraints.Constraint):
-    """ Constrains weight tensors to be nonnegative and add up to `ref_value` 
+    """ Constrains weight tensors to be nonnegative and add up to `ref_value`
     in the spatial dimensions. """
-  
+
     def __init__(self, ref_value):
         self.ref_value = ref_value
 
@@ -154,7 +157,7 @@ class FixSumBias(tf.keras.constraints.Constraint):
         # I don't think a nan can result here but just in case we add a small
         # offset.
         w1 = w / (s + 1e-4)
-        
+
         return self.ref_value * w1
 
     def get_config(self):
@@ -170,7 +173,7 @@ class Padding2D(tf.keras.layers.Layer):
         self.padding = padding
         self.mode = mode
         super(Padding2D, self).__init__(**kwargs)
-        
+
     def build(self, input_shape):
         super(Padding2D, self).build(input_shape)
 
@@ -178,7 +181,7 @@ class Padding2D(tf.keras.layers.Layer):
         if (self.data_format == "channels_last"):
             #(batch, depth, rows, cols, channels)
             pad = [[0,0]] + [[i,i] for i in self.padding] + [[0,0]]
-        
+
         elif self.data_format == "channels_first":
             #(batch, channels, depth, rows, cols)
             pad = [[0, 0], [0, 0]] + [[i,i] for i in self.padding]
@@ -188,8 +191,8 @@ class Padding2D(tf.keras.layers.Layer):
             out = tf.pad(inputs, paddings, self.mode)
         else:
             raise Exception("Backend " + tf.keras.backend.backend() + "not implemented")
-        return out 
-        
+        return out
+
     def compute_output_shape(self, input_shape):
         if self.data_format == "channels_last":
             #(batch, depth, rows, cols, channels)
@@ -223,7 +226,7 @@ class Fold2D(tf.keras.layers.Layer):
 
 
         super(Fold2D, self).__init__(**kwargs)
-        
+
     def build(self, input_shape):
         super(Fold2D, self).build(input_shape)
 
@@ -234,7 +237,7 @@ class Fold2D(tf.keras.layers.Layer):
 
         self.hflip = flipmat(self.l, h)
         self.wflip = flipmat(self.l, w)
-        
+
         x = tf.add(x, tf.einsum("ij,kjlm->kilm", self.hflip, x))
         x = tf.add(x, tf.einsum("ij,kljm->klim", self.wflip, x))
         return x
@@ -246,17 +249,17 @@ class Fold2D(tf.keras.layers.Layer):
         return {'l': self.l,
                 'data_format': self.data_format,
                 'name': self.name}
-    
-    
+
+
 
 def flipmat(l, n, flipend=False):
-    """ Construct a matrix that 'flips' values of a vector along the axis 
-    between elements l-1 and l (0-based).  Only considers values to the left of 
+    """ Construct a matrix that 'flips' values of a vector along the axis
+    between elements l-1 and l (0-based).  Only considers values to the left of
     the axis: all other values are ignored.
 
-    If endside is True, does it also same for the values at the end of the 
+    If endside is True, does it also same for the values at the end of the
     vector.
-    """    
+    """
     indices = [[l + i, l - 1 - i] for i in range(l)]
     values = [1 for i in range(l)]
 

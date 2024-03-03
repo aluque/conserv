@@ -66,6 +66,9 @@ m = 3
 # Number of cc filters
 filters = 32
 
+# whether to center and scale in layer-normalization
+center_scale_norm = true
+
 # Remove a patch from the data; this is the pseudo-electrode location
 [zero_patch]
 height = 2400
