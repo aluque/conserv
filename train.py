@@ -3,29 +3,65 @@ import numpy as np
 import tensorflow as tf
 import h5py
 from multiprocessing import cpu_count
-from model import buildmodel
+import hrnet
+import model
 from conf import CONF
 
+import datetime
+import socket
+import sys
+import json
+
+buildmodel = {"model": model.buildmodel,
+              "hrnet": hrnet.buildmodel}[CONF["model"]]
 
 def main():
     mirrored_strategy = tf.distribute.MirroredStrategy()
 
     os.makedirs(CONF["output_path"], exist_ok=True)
 
+    # Save reference info to output_path
+    with open(os.path.join(CONF["output_path"], "command.sh"), "w") as fp:
+        dt = datetime.datetime.now()
+        host = socket.gethostname()
+        cmdline = " ".join(sys.argv)
+        
+        fp.write(f"## time: {dt}\n")
+        fp.write(f"## host: {host}\n")
+        fp.write(f"{cmdline} \n")
+
+    with open(os.path.join(CONF["output_path"], "conf.json"), "w") as fp:
+        json.dump(CONF, fp, indent=4)
+
+        
     (ds, val) = dataset(path=CONF['dataset_path'])
 
     with mirrored_strategy.scope():
-        model = buildmodel(filters=CONF['filters'], l=CONF['l'], m=CONF['m'])
+        model = buildmodel(filters=CONF['filters'], l=CONF['l'], m=CONF['m'],
+                           center_scale_norm=CONF["center_scale_norm"], concat_input=True)
 
 
         cp = tf.keras.callbacks.ModelCheckpoint(CONF['saved_model'],
                                                 monitor='val_loss', mode='min',
                                                 verbose=1, save_best_only=True)
+        cpall = tf.keras.callbacks.ModelCheckpoint(CONF['intermediate_models'], verbose=1)
+
         log = tf.keras.callbacks.CSVLogger(CONF['training_log'])
-        optimizer = tf.keras.optimizers.legacy.Adam(clipvalue=100,
-                                                    decay=CONF["weight_decay"])
-    
-        model.compile(loss=CONF["loss"], optimizer=optimizer)
+        # optimizer = tf.keras.optimizers.Adam(clipvalue=100,
+        #                                      decay=CONF["weight_decay"])
+        optimizer = tf.keras.optimizers.Adam(learning_rate=CONF["init_learning_rate"],
+                                             clipvalue=CONF.get('clipvalue', None))
+        
+        loss_f = {"bykernel": regloss_bykernel,
+                  "som": regloss_bykernel,
+                  "circ": regloss_circ}[CONF["loss"]]
+        
+        loss = lambda y_true, y_pred: loss_f(y_true, y_pred, model,
+                                             alpha=CONF["alpha"],
+                                             weight_factor=CONF["weight_factor"],
+                                             N=128)
+        
+        model.compile(optimizer=optimizer, loss=loss)
 
     r = model.fit(ds,
                   validation_data = val,                  
@@ -34,9 +70,132 @@ def main():
                   workers    = CONF["workers"],
                   verbose    = CONF["fit_verbose"],
                   use_multiprocessing=True,
-                  callbacks=(cp,log))
+                  callbacks=(cp,cpall,log))
 
     model.summary()
+
+
+def regloss_bykernel(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=128):
+    """ A loss functon with regularization that takes into account the
+    convolutional instability.
+
+    alpha is the factor that amplifies this reg. loss before it is added to the
+    mse.
+    """
+    shape = tf.shape(y_true)
+
+    y_input = tf.reshape(y_pred[:, :, :, 1], (shape[0], shape[1], shape[2], 1))    
+    y_pred = tf.reshape(y_pred[:, :, :, 0], (shape[0], shape[1], shape[2], 1))
+    
+    err = y_true - y_pred
+    if CONF["cylindrical"]:
+        r = tf.constant(0.5) + tf.range(0, shape[2], dtype=tf.float32)
+        err = err / tf.reshape(r, (1, 1, shape[2], 1))
+        y_true1 = y_true / tf.reshape(r, (1, 1, shape[2], 1))
+    else:
+        y_true1 = y_true
+    mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+
+    layer = model.get_layer("K")
+    w = layer.trainable_variables[0]
+
+    # tf.fft2d works on the latest 2 dim
+    w = tf.transpose(w, perm=[2, 3, 0, 1])
+
+    # padding with 0s
+    npad = N - 2 * l - 1
+    paddings = tf.constant([[0, 0], [0, 0], [0, npad], [0, npad]])
+    w = tf.pad(w, paddings, "CONSTANT")
+
+    wf = tf.signal.fft2d(tf.cast(w, tf.complex64))
+
+    # because the center of the kernel is at l we have to add a phase to each
+    # frequency (to compensate the shift in real space).
+    z = tf.exp(2 * np.pi * 1j * tf.cast(tf.range(0, N), tf.complex64) * l / N)
+    wf = tf.multiply(tf.multiply(wf, z), tf.reshape(z, (N, 1)))
+
+    # We multiply by the number of kernels b.c. we do not want averages over
+    # that
+    reg = tf.reduce_mean(tf.nn.relu(-tf.math.real(wf))) * tf.cast(tf.shape(w)[0], tf.float32)
+
+    return mse + alpha * reg
+    
+
+def regloss_som(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=128):
+    """ A loss functon with regularization that takes into account the
+    convolutional instability.
+
+    alpha is the factor that amplifies this reg. loss before it is added to the
+    mse.
+    """
+    shape = tf.shape(y_true)
+
+    y_input = tf.squeeze(tf.reshape(y_pred[:, :, :, 1], (shape[0], shape[1], shape[2], 1)), axis=-1)
+    y_pred = tf.squeeze(tf.reshape(y_pred[:, :, :, 0], (shape[0], shape[1], shape[2], 1)), axis=-1)
+
+    err = y_true - y_pred
+    if CONF["cylindrical"]:
+        r = tf.constant(0.5) + tf.range(0, shape[2], dtype=tf.float32)
+        err = err / tf.reshape(r, (1, 1, shape[2]))
+        y_true1 = y_true / tf.reshape(r, (1, 1, shape[2]))
+    else:
+        y_true1 = y_true
+    mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+
+    # Avoid intsbility term
+    z_input = tf.signal.fft2d(tf.cast(y_input, tf.complex64))
+    z_pred = tf.signal.fft2d(tf.cast(y_pred, tf.complex64))
+    z1 = tf.math.conj(z_input) * z_pred
+    reg = tf.reduce_mean(tf.nn.relu(-tf.math.real(z1)))
+
+    return mse + alpha * reg
+
+
+def regloss_circ(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=128):
+    """ A loss functon with regularization that takes into account the
+    convolutional instability. Here we compute the differences in phases of the input
+    and predicted q; the loss term is |exp(i phi1) - exp(i phi2)|^2, which is equal to
+    2 - (conj(z_true) * z_pred + z_true * conj(z_pred)) / abs(z_true) / abs(z_pred).
+
+    The idea here is that better predictors are those that change as little as possible
+    the phase of y. This for example explain why gaussian convolution works as well;
+    for a gaussian convolution this term vanishes.
+
+    alpha is the factor that amplifies this reg. loss before it is added to the
+    mse.
+    """
+    shape = tf.shape(y_true)
+
+    y_input = tf.squeeze(tf.reshape(y_pred[:, :, :, 1], (shape[0], shape[1], shape[2], 1)), axis=-1)
+    y_pred = tf.squeeze(tf.reshape(y_pred[:, :, :, 0], (shape[0], shape[1], shape[2], 1)), axis=-1)
+    y_true = tf.squeeze(y_true, axis=-1)
+    
+    err = y_true - y_pred
+    if CONF["cylindrical"]:
+        r = tf.constant(0.5) + tf.range(0, shape[2], dtype=tf.float32)
+        err = err / tf.reshape(r, (1, 1, shape[2]))
+        y_true1 = y_true / tf.reshape(r, (1, 1, shape[2]))
+    else:
+        y_true1 = y_true
+    mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+
+    # Avoid intsbility term
+    z_input = tf.signal.fft2d(tf.cast(y_input, tf.complex64))
+    z_pred = tf.signal.fft2d(tf.cast(y_pred, tf.complex64))
+
+    epsilon = 1e-6
+    z1 = 2 - (tf.math.real(tf.math.conj(z_input) * z_pred + z_input * tf.math.conj(z_pred))
+              / (tf.math.abs(z_input) * tf.math.abs(z_pred) + epsilon))
+
+    # Weight with the PSD in the inferred y; one can either supress these modes or make them stable.
+    z1 *= tf.math.real(tf.math.conj(z_pred) * z_pred)
+    
+    reg = tf.reduce_mean(tf.math.real(z1))
+
+    return mse + alpha * reg
+
+
+
 
 def dataset(path="", train_ratio=0.8):
     AUTOTUNE = tf.data.AUTOTUNE
@@ -46,8 +205,16 @@ def dataset(path="", train_ratio=0.8):
 
     nfiles = len(all_files)
     train_size = int(train_ratio * nfiles)
+
     train_files = all_files.take(train_size)
     val_files = all_files.skip(train_size)
+
+    # Make sure that sizes are multiples of the batch size: with multi-gpus I am having trouble
+    # otherwise
+    train_files = train_files.take(CONF["training_batch"] *
+                                   (len(train_files) // CONF["training_batch"]))
+    val_files = val_files.take(CONF["training_batch"] *
+                               (len(val_files) // CONF["training_batch"]))
     
     def create_dataset(files):
         ds = files.shuffle(buffer_size = 10000, seed=CONF["seed"],
@@ -59,7 +226,7 @@ def dataset(path="", train_ratio=0.8):
         ds = ds.batch(CONF["training_batch"])
         ds = ds.prefetch(AUTOTUNE)
         options = tf.data.Options()
-        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.AUTO
+        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.FILE
         return ds.with_options(options)
 
     train = create_dataset(train_files)
@@ -69,15 +236,18 @@ def dataset(path="", train_ratio=0.8):
 
 def loadq(filename):
     if "zero_patch" in CONF:
-        c = CONF["zero_patch"]
-        h = c["height"]
-        w = c["width"]
+        c = CONF["zero_patch"]        
+        if "disable" in c and c["disable"]:
+            zero_patch = None
+        else:
+            h = c["height"]
+            w = c["width"]
 
-        if c.get("scale_with_resample", False):
-            h = h // CONF["resample_factor"]
-            w = w // CONF["resample_factor"]
+            if c.get("scale_with_resample", False):
+                h = h // CONF["resample_factor"]
+                w = w // CONF["resample_factor"]
             
-        zero_patch = np.s_[0:h], np.s_[0:w]
+            zero_patch = np.s_[0:h], np.s_[0:w]
     else:
         zero_patch = None
     

@@ -8,7 +8,7 @@ def main():
     model.compile(loss='mse', optimizer='Adam')
 
 
-def buildmodel(filters=32, l=3, m=3, concat_input=False):
+def buildmodel(filters=32, l=3, m=3, center_scale_norm=True, concat_input=False):
     lin_conv_size = 2 * l + 1
     nonlin_conv_size = 2 * m + 1
 
@@ -42,8 +42,8 @@ def buildmodel(filters=32, l=3, m=3, concat_input=False):
     n = tf.keras.layers.LeakyReLU(name="activ3", alpha=0.1)(n)
 
     n = tf.keras.layers.LayerNormalization(name="lnorm",
-                                           center=CONF["center_scale_norm"],
-                                           scale=CONF["center_scale_norm"],
+                                           center=center_scale_norm,
+                                           scale=center_scale_norm,
                                            axis=3)(n)
     #n = tf.keras.layers.GaussianNoise(0.1, name="noise")(n)
 

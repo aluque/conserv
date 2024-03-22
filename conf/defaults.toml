@@ -6,6 +6,8 @@ resample_factor = 16
 # Name of the model.  If called as -i name.toml it is overriden by 'name'
 name = "default"
 
+model = "model"
+
 # Location of the training dataset
 dataset_path = "~/data/denoise/charge_density/x{resample_factor}"
 
@@ -16,7 +18,8 @@ output_path = "~/data/denoise/conserv/{name}"
 plots_path = "{output_path}/plots"
 
 # Filename to plot a sample
-sample_file_name="background_density10_negative_10kV_claw0021.hdf"
+#sample_file_name="background_density10_negative_10kV_claw0021.hdf"
+sample_file_name="background_density12_negative_15kV_claw0018.hdf"
 
 # Full path of $sample_file_name
 sample_file_path = "{dataset_path}/original/{sample_file_name}"
@@ -29,6 +32,9 @@ h5_model = "{output_path}/checkpoint.hdf5"
 
 # Location of the trained weights
 saved_model = "{output_path}/model"
+
+# Location of intermediate trained models
+intermediate_models = "{output_path}/epoch{{epoch:03d}}.keras"
 
 # Log for training losses
 training_log = "{output_path}/training.csv"
@@ -45,8 +51,8 @@ seed = 2021
 # Batch size
 training_batch = 4
 
-# Type of loss function (see TF docs)
-loss = "mse"
+# Type of loss function (train.py)
+loss = "bykernel"
 
 # Max. number of epochs
 epochs = 1000
