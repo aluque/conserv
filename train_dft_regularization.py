@@ -6,12 +6,12 @@ from multiprocessing import cpu_count
 from model import buildmodel
 from conf import CONF
 
-
 def main():
     mirrored_strategy = tf.distribute.MirroredStrategy()
 
     os.makedirs(CONF["output_path"], exist_ok=True)
 
+    
     (ds, val) = dataset(path=CONF['dataset_path'])
 
     with mirrored_strategy.scope():
@@ -24,8 +24,9 @@ def main():
         log = tf.keras.callbacks.CSVLogger(CONF['training_log'])
         optimizer = tf.keras.optimizers.legacy.Adam(clipvalue=100,
                                                     decay=CONF["weight_decay"])
-    
-        model.compile(loss=CONF["loss"], optimizer=optimizer)
+        loss = lambda y_true, y_pred: regloss(y_true, y_pred, model,
+                                              alpha=CONF["alpha"], N=128)
+        model.compile(optimizer=optimizer, loss=loss)
 
     r = model.fit(ds,
                   validation_data = val,                  
@@ -37,6 +38,52 @@ def main():
                   callbacks=(cp,log))
 
     model.summary()
+
+
+def regloss(y_true, y_pred, model, alpha=0.01, l=6, N=128):
+    """ A loss functon with regularization that takes into account the
+    convolutional instability. It performs a FFT of the kernel data
+    (padding up to N in each dim) and then applies a relu to minus the
+    real part of the result. The regularization loss is the average of this
+    along N x N.
+
+    alpha is the factor that amplifies this reg. loss before it is added to the
+    mse.
+    """
+    
+    err = y_true - y_pred
+    shape = tf.shape(y_true)
+
+    if CONF["cylindrical"]:
+        r = tf.constant(0.5) + tf.range(0, shape[2], dtype=tf.float32)
+        err = err / tf.reshape(r, (1, 1, shape[2], 1))
+    
+    mse = tf.reduce_mean(tf.square(err))
+
+    layer = model.get_layer("K")
+    w = layer.trainable_variables[0]
+
+    # tf.fft2d works on the latest 2 dim
+    w = tf.transpose(w, perm=[2, 3, 0, 1])
+
+    # padding with 0s
+    npad = N - 2 * l - 1
+    paddings = tf.constant([[0, 0], [0, 0], [0, npad], [0, npad]])
+    w = tf.pad(w, paddings, "CONSTANT")
+
+    wf = tf.signal.fft2d(tf.cast(w, tf.complex64))
+
+    # because the center of the kernel is at l we have to add a phase to each
+    # frequency (to compensate the shift in real space).
+    z = tf.exp(2 * np.pi * 1j * tf.cast(tf.range(0, N), tf.complex64) * l / N)
+    wf = tf.multiply(tf.multiply(wf, z), tf.reshape(z, (N, 1)))
+
+    # We multiply by the number of kernels b.c. we do not want averages over
+    # that
+    reg = tf.reduce_mean(tf.nn.relu(-tf.math.real(wf))) * tf.cast(tf.shape(w)[0], tf.float32)
+    
+    return mse + alpha * reg
+    
 
 def dataset(path="", train_ratio=0.8):
     AUTOTUNE = tf.data.AUTOTUNE
@@ -69,15 +116,18 @@ def dataset(path="", train_ratio=0.8):
 
 def loadq(filename):
     if "zero_patch" in CONF:
-        c = CONF["zero_patch"]
-        h = c["height"]
-        w = c["width"]
+        c = CONF["zero_patch"]        
+        if "disable" in c and c["disable"]:
+            zero_patch = None
+        else:
+            h = c["height"]
+            w = c["width"]
 
-        if c.get("scale_with_resample", False):
-            h = h // CONF["resample_factor"]
-            w = w // CONF["resample_factor"]
+            if c.get("scale_with_resample", False):
+                h = h // CONF["resample_factor"]
+                w = w // CONF["resample_factor"]
             
-        zero_patch = np.s_[0:h], np.s_[0:w]
+            zero_patch = np.s_[0:h], np.s_[0:w]
     else:
         zero_patch = None
     

@@ -3,20 +3,23 @@ import numpy as np
 import tensorflow as tf
 import h5py
 from multiprocessing import cpu_count
-from hrnet import buildmodel
+import hrnet
+import model
 from conf import CONF
+
+buildmodel = {"model": model.buildmodel,
+              "hrnet": hrnet.buildmodel}[CONF["model"]]
 
 def main():
     mirrored_strategy = tf.distribute.MirroredStrategy()
 
     os.makedirs(CONF["output_path"], exist_ok=True)
 
-
     (ds, val) = dataset(path=CONF['dataset_path'])
 
     with mirrored_strategy.scope():
         model = buildmodel(filters=CONF['filters'], l=CONF['l'], m=CONF['m'],
-                           concat_input=True)
+                           center_scale_norm=CONF["center_scale_norm"], concat_input=True)
 
 
         cp = tf.keras.callbacks.ModelCheckpoint(CONF['saved_model'],
@@ -72,7 +75,6 @@ def regloss(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=128):
     z1 = tf.math.conj(z_input) * z_pred
     reg = tf.reduce_mean(tf.nn.relu(-tf.math.real(z1)))
 
-    print(f"{mse=}, {reg=}")
     return mse + alpha * reg
 
 
