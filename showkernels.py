@@ -3,6 +3,7 @@ import numpy as np
 
 import tensorflow as tf
 from matplotlib import pyplot as plt
+from matplotlib.colors import LogNorm, Normalize
 
 try:
     plt.style.use("granada")
@@ -18,22 +19,30 @@ def main(savefigs=True):
 
     model = tf.keras.models.load_model(CONF['saved_model'],
                                        custom_objects=CUSTOM_OBJECTS)
+    print(CONF['saved_model'])
+
     K = model.get_layer("K").get_weights()[0]
-    
+
     fig = plt.figure("kernels", figsize=(20, 10))
     plt.suptitle("Kernels $K^{(n)}$", size=16)
     vmax = np.max(K)
-    for i in range(32):
+    for i in range(K.shape[2]):
         ax = plt.subplot(4, 8, i + 1)
         #p = ax.matshow(K[:, :, i], cmap="inferno", vmin=0, vmax=vmax)
-        p = ax.pcolormesh(np.squeeze(K[:, :, i]), cmap="inferno", vmin=0, vmax=vmax)
+        p = ax.pcolormesh(np.squeeze(K[:, :, i]), cmap="inferno",
+                          vmin=0, vmax=vmax)
+                          #norm=LogNorm(vmin=vmax/1e2, vmax=vmax))
+        print(i, ": ", np.sum(K[:, :, i]))
         ax.set_xticks(np.arange(K.shape[1]))
         ax.set_yticks(np.arange(K.shape[0]))
         ax.set_aspect("equal")
-        
+
+    # plt.show()
+    # return
+
     cbar = fig.add_axes([0.92, 0.1, 0.02, 0.8])
     plt.colorbar(p, cax=cbar)
-    
+
     if savefigs:
         plt.savefig(os.path.join(CONF["plots_path"], "kernels.pdf"))
 
@@ -44,28 +53,29 @@ def main(savefigs=True):
     q1 = q1.reshape((1, *q1.shape))
 
     c = probing_layer.predict(q1)
-    
+
     fig = plt.figure("weights", figsize=(20, 10))
     plt.suptitle("Partition coeffs $c^{(n)}$", size=16)
     s = 16 // CONF["resample_factor"]
-    for i in range(4):
-        for j in range(8):
-            n = i * 8 + j
-            ax = plt.subplot(4, 8, n + 1)
-            p = ax.pcolormesh(c[0, ::s, ::s, n], vmin=0, vmax=1, cmap="inferno")
-            
-            if i != 3:
-                ticks = ax.get_xticks()
-                ax.set_xticklabels(["" for t in ticks])
-            else:
-                ax.set_xlabel("r (px)")
-                
-            if j != 0:
-                ticks = ax.get_yticks()
-                ax.set_yticklabels(["" for t in ticks])
+    for n in range(K.shape[2]):
+        i = n // 8
+        j = n % 8
 
-            else:
-                ax.set_ylabel("z (px)")
+        ax = plt.subplot(4, 8, n + 1)
+        p = ax.pcolormesh(c[0, 1::s, 1::s, n], cmap="inferno", norm=Normalize(vmin=1e-3, vmax=1))
+        
+        if i != 3:
+            ticks = ax.get_xticks()
+            ax.set_xticklabels(["" for t in ticks])
+        else:
+            ax.set_xlabel("r (px)")
+            
+        if j != 0:
+            ticks = ax.get_yticks()
+            ax.set_yticklabels(["" for t in ticks])
+            
+        else:
+            ax.set_ylabel("z (px)")
 
     cbar = fig.add_axes([0.92, 0.1, 0.02, 0.8])
     plt.colorbar(p, cax=cbar)
@@ -74,6 +84,6 @@ def main(savefigs=True):
         plt.savefig(os.path.join(CONF["plots_path"], "partition.pdf"))
 
     plt.show()
-    
+
 if __name__ == '__main__':
     main()
