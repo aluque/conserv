@@ -34,7 +34,7 @@ h5_model = "{output_path}/checkpoint.hdf5"
 saved_model = "{output_path}/model"
 
 # Location of intermediate trained models
-intermediate_models = "{output_path}/epoch{{epoch:03d}}.keras"
+intermediate_models = "{output_path}/epoch{{epoch:03d}}"
 
 # Log for training losses
 training_log = "{output_path}/training.csv"
