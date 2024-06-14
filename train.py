@@ -58,7 +58,8 @@ def main():
         
         loss = lambda y_true, y_pred: loss_f(y_true, y_pred, model,
                                              alpha=CONF["alpha"],
-                                             weight_factor=CONF["weight_factor"],
+                                             weight_factor=CONF.get("weight_factor", 0),
+                                             axis_weight=CONF.get("axis_weight", 0),
                                              N=128)
         
         model.compile(optimizer=optimizer, loss=loss)
@@ -75,7 +76,8 @@ def main():
     model.summary()
 
 
-def regloss_bykernel(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=128):
+def regloss_bykernel(y_true, y_pred, model, alpha=0.01, weight_factor=0.01,
+                     axis_weight=0, l=6, N=128):
     """ A loss functon with regularization that takes into account the
     convolutional instability.
 
@@ -90,12 +92,20 @@ def regloss_bykernel(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6,
     err = y_true - y_pred
     if CONF["cylindrical"]:
         r = tf.constant(0.5) + tf.range(0, shape[2], dtype=tf.float32)
-        err = err / tf.reshape(r, (1, 1, shape[2], 1))
+        r1 = tf.reshape(r, (1, 1, shape[2], 1))
+        err = err / r1
+        if axis_weight > 0:
+            err = err * (1 + tf.constant(axis_weight) * tf.exp(-r1**2 / tf.cast(l**2, tf.float32)))
+            
         y_true1 = y_true / tf.reshape(r, (1, 1, shape[2], 1))
     else:
         y_true1 = y_true
-    mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
 
+    if weight_factor > 0:
+        mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+    else:
+        mse = tf.reduce_mean(tf.square(err))
+        
     layer = model.get_layer("K")
     w = layer.trainable_variables[0]
 
@@ -121,7 +131,7 @@ def regloss_bykernel(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6,
     return mse + alpha * reg
     
 
-def regloss_som(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=128):
+def regloss_som(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, axis_weight=0, l=6, N=128):
     """ A loss functon with regularization that takes into account the
     convolutional instability.
 
@@ -136,11 +146,19 @@ def regloss_som(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=12
     err = y_true - y_pred
     if CONF["cylindrical"]:
         r = tf.constant(0.5) + tf.range(0, shape[2], dtype=tf.float32)
-        err = err / tf.reshape(r, (1, 1, shape[2]))
+        r1 = tf.reshape(r, (1, 1, shape[2], 1))
+        err = err / r1
+        if axis_weight > 0:
+            err = err * (1 + tf.constant(axis_weight) * tf.exp(-r1**2 / tf.cast(l**2, tf.float32)))
+
         y_true1 = y_true / tf.reshape(r, (1, 1, shape[2]))
     else:
         y_true1 = y_true
-    mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+
+    if weight_factor > 0:
+        mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+    else:
+        mse = tf.reduce_mean(tf.square(err))
 
     # Avoid intsbility term
     z_input = tf.signal.fft2d(tf.cast(y_input, tf.complex64))
@@ -151,7 +169,7 @@ def regloss_som(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=12
     return mse + alpha * reg
 
 
-def regloss_circ(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=128):
+def regloss_circ(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, axis_weight=0, l=6, N=128):
     """ A loss functon with regularization that takes into account the
     convolutional instability. Here we compute the differences in phases of the input
     and predicted q; the loss term is |exp(i phi1) - exp(i phi2)|^2, which is equal to
@@ -173,11 +191,19 @@ def regloss_circ(y_true, y_pred, model, alpha=0.01, weight_factor=0.01, l=6, N=1
     err = y_true - y_pred
     if CONF["cylindrical"]:
         r = tf.constant(0.5) + tf.range(0, shape[2], dtype=tf.float32)
-        err = err / tf.reshape(r, (1, 1, shape[2]))
+        r1 = tf.reshape(r, (1, 1, shape[2], 1))
+        err = err / r1
+        if axis_weight > 0:
+            err = err * (1 + tf.constant(axis_weight) * tf.exp(-r1**2 / tf.cast(l**2, tf.float32)))
+
         y_true1 = y_true / tf.reshape(r, (1, 1, shape[2]))
     else:
         y_true1 = y_true
-    mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+
+    if weight_factor > 0:
+        mse = tf.reduce_mean(tf.square(err) * (1 + tf.square(y_true1) / tf.constant(weight_factor**2)))
+    else:
+        mse = tf.reduce_mean(tf.square(err))
 
     # Avoid intsbility term
     z_input = tf.signal.fft2d(tf.cast(y_input, tf.complex64))
@@ -203,6 +229,15 @@ def dataset(path="", train_ratio=0.8):
     all_files = tf.data.Dataset.list_files(os.path.join(path, "original", "*.hdf"),
                                            seed=CONF["seed"], shuffle=True)
 
+    all_files_flag = all_files.map(lambda fname: (fname, False))
+
+    if CONF["reverse"]:
+        all_files_rev = all_files.map(lambda fname: (fname, True))
+        all_files = all_files_flag.concatenate(all_files_rev)
+    else:
+        all_files = all_files_flag
+
+    
     nfiles = len(all_files)
     train_size = int(train_ratio * nfiles)
 
@@ -219,10 +254,10 @@ def dataset(path="", train_ratio=0.8):
     def create_dataset(files):
         ds = files.shuffle(buffer_size = 10000, seed=CONF["seed"],
                            reshuffle_each_iteration = True)
-        ds = ds.map(lambda fname: tf.py_function(func = load2, inp=[fname],
-                                                 Tout=(tf.float32, tf.float32)),
-                    num_parallel_calls=AUTOTUNE, deterministic=True)
-
+        ds = files.map(lambda fname, rev: tf.py_function(func = load2, inp=[fname, rev],
+                                                    Tout=(tf.float32, tf.float32)),
+                       num_parallel_calls=AUTOTUNE, deterministic=True)
+        
         ds = ds.batch(CONF["training_batch"])
         ds = ds.prefetch(AUTOTUNE)
         options = tf.data.Options()
@@ -270,15 +305,20 @@ def loadq(filename):
     return q
 
 
-def load2(filename):
+def load2(filename, reverse):
     if not isinstance(filename, str):
         filename = filename.numpy().decode("utf-8") 
     
     q = loadq(filename)
     q = np.reshape(q, (q.shape[0], q.shape[1], 1))
-
+    
     q1 = loadq(filename.replace('original', CONF["noisy_samples"]))
     q1 = np.reshape(q1, (q1.shape[0], q1.shape[1], 1))
+
+    if reverse:
+        q = np.flip(q, axis=0)
+        q1 = np.flip(q1, axis=0)
+        
     return q1, q
 
 

@@ -33,6 +33,9 @@ def main(savefigs=True):
                           vmin=0, vmax=vmax)
                           #norm=LogNorm(vmin=vmax/1e2, vmax=vmax))
         print(i, ": ", np.sum(K[:, :, i]))
+        for j in range(0, K.shape[0]):
+            print("    ", j, ": ", np.sum(K[j, :, i]))
+            
         ax.set_xticks(np.arange(K.shape[1]))
         ax.set_yticks(np.arange(K.shape[0]))
         ax.set_aspect("equal")
@@ -49,7 +52,7 @@ def main(savefigs=True):
     probing_layer = tf.keras.Model(inputs=model.input,
                                    outputs=model.get_layer("softmax").output)
 
-    q1, q = load2(CONF["sample_file_path"])
+    q1, q = load2(CONF["sample_file_path"], False)
     q1 = q1.reshape((1, *q1.shape))
 
     c = probing_layer.predict(q1)

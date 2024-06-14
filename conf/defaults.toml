@@ -78,6 +78,9 @@ center_scale_norm = true
 # Initial learning rate
 init_learning_rate = 0.001
 
+# Expand the dataset with z-reversed data
+reverse = false
+
 # Remove a patch from the data; this is the pseudo-electrode location
 [zero_patch]
 height = 2400
