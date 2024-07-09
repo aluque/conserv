@@ -11,12 +11,12 @@ To train a model the code should be invoked as
 python train.py -i conf/configuration.toml
 ```
 
-In the `conf` folder we provide the configuration for the model described in the paper (`x1-l6m4-p50.conf`). 
+In the `conf` folder we provide the configuration for the model described in the paper (`x1-l6m4-a100.conf`). 
 See also `conf/defaults.toml` for additional parameters.
 
 ## Pre-trained weights
 The weights used in the paper are stored under the `weights` folder:
-- `x1-l6m4-p50`contains the charge-conserving weights.
+- `x1-l6m4-a100`contains the charge-conserving weights.
 - `avg-l6` contains the window-averaging model. These weights are not trained and defined in `averaging_model.py`.
 
 ## Short explanation
