@@ -1,6 +1,6 @@
 # Charge-conserving denoiser
 This repository contains the code and training weights for the charge-conserving model presented in 
-"Efficient Monte Carlo simulation of streamer discharges with machine-learning denoising models" by
+"Efficient Monte Carlo simulation of streamer discharges with deep-learning denoising models" by
 M. Bayo, A. Malagón-Romero and A. Luque.
 
 ## Instalation and use
